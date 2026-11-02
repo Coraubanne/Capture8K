@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Capture8K</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="mark" aria-hidden="true"><span id="format-mark">8K</span></div>
+        <h1>Capture8K</h1>
+        <button id="open-app" type="button">Dossier…</button>
+      </header>
+
+      <fieldset class="resolution-picker">
+        <legend>Définition de la capture</legend>
+        <div class="resolution-options">
+          <label>
+            <input type="radio" name="resolution" value="4k">
+            <span>4K</span>
+          </label>
+          <label>
+            <input type="radio" name="resolution" value="8k" checked>
+            <span>8K</span>
+          </label>
+        </div>
+      </fieldset>
+
+      <button id="capture" type="button">
+        <span class="camera" aria-hidden="true"></span>
+        <span id="capture-label">Capturer en 8K</span>
+      </button>
+
+      <section id="status" class="status ready" aria-live="polite">
+        <div class="status-line">
+          <span id="status-icon" class="status-icon" aria-hidden="true"></span>
+          <span id="status-text">Prêt</span>
+        </div>
+        <div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>
+      </section>
+
+      <section class="companion" aria-label="État de l’application Capture8K">
+        <span class="native-dot" aria-hidden="true"></span>
+        <span id="native-label">Vérification…</span>
+      </section>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

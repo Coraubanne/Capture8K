@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Capture8K",
+  "description": "Rerastérise la page visible en PNG natif 4K ou 8K sans déplacer sa mise en page, puis la certifie avec l’app macOS.",
+  "version": "2.5.7",
+  "minimum_chrome_version": "125",
+  "permissions": [
+    "activeTab",
+    "debugger",
+    "nativeMessaging",
+    "scripting",
+    "storage",
+    "tabs",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "commands": {
+    "capture-visible": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+8",
+        "mac": "Command+Shift+8"
+      },
+      "description": "Capturer immédiatement la page visible"
+    }
+  },
+  "action": {
+    "default_title": "Capture8K — Capturer la page visible en 4K / 8K",
+    "default_popup": "popup.html"
+  }
+}
