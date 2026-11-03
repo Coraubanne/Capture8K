@@ -236,7 +236,7 @@ static NSDictionary *C8KCompare(CGImageRef first, CGImageRef second, NSError **e
     NSInteger renderHeight = (NSInteger)CGImageGetHeight(render);
     if (renderWidth != self.expectedWidth || renderHeight != self.expectedHeight) {
         if (error) *error = C8KError(7, [NSString stringWithFormat:
-            @"Chrome a produit %ld × %ld au lieu de %ld × %ld.", (long)renderWidth,
+            @"Le navigateur a produit %ld × %ld au lieu de %ld × %ld.", (long)renderWidth,
             (long)renderHeight, (long)self.expectedWidth, (long)self.expectedHeight]);
         CGImageRelease(reference); CGImageRelease(baseline); CGImageRelease(render);
         return nil;

@@ -1,0 +1,229 @@
+:root {
+  color-scheme: light;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #111827;
+  background: #f7f8fb;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  width: 300px;
+  margin: 0;
+  background: radial-gradient(circle at 100% 0, #e8edff 0, transparent 45%), #f7f8fb;
+}
+
+main { padding: 16px; }
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.mark {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  border-radius: 11px;
+  color: white;
+  background: linear-gradient(145deg, #195cff, #713ee7);
+  box-shadow: 0 7px 18px #384dd238;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+h1 {
+  flex: 1;
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: -0.25px;
+}
+
+#open-app {
+  padding: 6px 8px;
+  border: 1px solid #dce0e9;
+  border-radius: 8px;
+  color: #596273;
+  background: #ffffffc9;
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.resolution-picker {
+  min-width: 0;
+  margin: 0 0 10px;
+  padding: 0;
+  border: 0;
+}
+
+.resolution-picker legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.resolution-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.resolution-options label { position: relative; cursor: pointer; }
+.resolution-options input { position: absolute; opacity: 0; pointer-events: none; }
+
+.resolution-options label > span {
+  display: grid;
+  height: 40px;
+  place-items: center;
+  border: 1px solid #dfe3eb;
+  border-radius: 10px;
+  color: #596273;
+  background: #ffffffc9;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.resolution-options input:checked + span {
+  border-color: #4771ed;
+  color: #214fc7;
+  background: #edf2ff;
+  box-shadow: 0 0 0 2px #365fe11c;
+}
+
+.resolution-options input:focus-visible + span {
+  outline: 2px solid #1d4ed8;
+  outline-offset: 2px;
+}
+
+.resolution-options input:disabled + span { cursor: wait; opacity: 0.58; }
+
+#capture {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  border: 0;
+  border-radius: 12px;
+  color: white;
+  background: linear-gradient(135deg, #1859ee, #6741e8);
+  box-shadow: 0 9px 21px #3549d23d;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 760;
+}
+
+#capture:hover { filter: brightness(1.045); }
+#capture:active { transform: translateY(1px); }
+#capture:disabled { cursor: wait; opacity: 0.68; }
+
+.camera {
+  position: relative;
+  width: 18px;
+  height: 13px;
+  border: 2px solid currentColor;
+  border-radius: 4px;
+}
+
+.camera::before {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 4px;
+  width: 5px;
+  height: 3px;
+  border-radius: 2px 2px 0 0;
+  background: currentColor;
+}
+
+.camera::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 4px;
+  width: 5px;
+  height: 5px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+}
+
+.status {
+  padding: 10px 1px 0;
+  color: #596273;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.status.ready { display: none; }
+.status-line { display: flex; align-items: flex-start; gap: 7px; }
+
+.status-icon {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: #7d8795;
+}
+
+.status.working .status-icon,
+.status.selecting .status-icon { background: #315ee8; animation: pulse 1s infinite alternate; }
+.status.done .status-icon { background: #0c9b65; }
+.status.error .status-icon { background: #db2e43; }
+
+.progress {
+  height: 3px;
+  margin: 8px 0 0 14px;
+  overflow: hidden;
+  border-radius: 9px;
+  background: #e3e6ec;
+  opacity: 0;
+}
+
+.working .progress,
+.selecting .progress { opacity: 1; }
+
+.progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2563eb, #7c3aed);
+  transition: width 220ms ease;
+}
+
+.companion {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 11px;
+  color: #8a92a0;
+  font-size: 9.5px;
+}
+
+.native-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #d19a27;
+}
+
+.companion.connected .native-dot { background: #0c9b65; }
+.companion.error .native-dot { background: #db2e43; }
+
+@keyframes pulse {
+  from { transform: scale(0.72); opacity: 0.55; }
+  to { transform: scale(1.1); opacity: 1; }
+}

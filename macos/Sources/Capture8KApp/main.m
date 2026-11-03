@@ -83,16 +83,23 @@
     BOOL running = [browser[@"running"] boolValue];
     BOOL ready = [browser[@"captureModeReady"] boolValue];
     NSString *browserName = browser[@"browserName"] ?: @"Google Chrome";
-    self.browserStatusItem.title = ready
-        ? [NSString stringWithFormat:@"%@ : mode fidèle actif", browserName]
-        : (running ? [NSString stringWithFormat:@"%@ : relance requise", browserName]
-                   : @"Google Chrome : fermé");
-    self.prepareBrowserItem.title = ready
-        ? @"Recharger Capture8K dans Chrome…"
-        : (running ? @"Relancer Chrome en mode Capture8K…" : @"Ouvrir Chrome en mode Capture8K");
-    self.prepareBrowserItem.enabled = !self.preparingBrowser;
+    NSString *identifier = [browser[@"bundleIdentifier"] lowercaseString] ?: @"";
+    BOOL firefox = [identifier hasPrefix:@"org.mozilla.firefox"] ||
+        [identifier isEqualToString:@"org.mozilla.nightly"];
+    self.browserStatusItem.title = firefox
+        ? [NSString stringWithFormat:@"%@ : moteur 4K/8K natif prêt", browserName]
+        : (ready ? [NSString stringWithFormat:@"%@ : mode fidèle actif", browserName]
+                 : (running ? [NSString stringWithFormat:@"%@ : relance requise", browserName]
+                            : @"Navigateur : fermé"));
+    self.prepareBrowserItem.title = firefox
+        ? @"Firefox ne nécessite aucune préparation"
+        : (ready ? @"Recharger Capture8K dans Chrome…"
+                 : (running ? @"Relancer Chrome en mode Capture8K…" : @"Ouvrir Chrome en mode Capture8K"));
+    self.prepareBrowserItem.enabled = !firefox && !self.preparingBrowser;
     self.statusItem.button.title = [NSString stringWithFormat:@"%@%@", is4K ? @"4K" : @"8K", ready ? @"" : @"!"];
-    self.statusItem.button.toolTip = ready ? @"Capture8K — Chrome prêt" : @"Capture8K — préparer Chrome";
+    self.statusItem.button.toolTip = firefox
+        ? @"Capture8K — Firefox prêt"
+        : (ready ? @"Capture8K — Chrome prêt" : @"Capture8K — préparer Chrome");
 }
 
 - (void)refreshBrowserStatus:(id)sender { [self refreshMenu]; }
@@ -233,8 +240,8 @@
 
 - (void)showAbout:(id)sender {
     NSAlert *alert = [NSAlert new];
-    alert.messageText = @"Capture8K 2.5.7";
-    alert.informativeText = @"Dans Chrome préparé par l’app, ⌘⇧8 capture immédiatement 100 % de la zone visible. Le mode fidèle conserve le ratio exact de la fenêtre, protège les sites réactifs et compare plusieurs témoins visuels avant d’enregistrer le PNG 4K/8K.";
+    alert.messageText = @"Capture8K 2.6.0";
+    alert.informativeText = @"Dans Chrome ou Firefox, ⌘⇧8 capture 100 % de la zone web visible en 4K/8K. Firefox utilise directement le rerendu natif haute densité de Gecko ; Chrome conserve son mode fidèle. L’app compare plusieurs témoins visuels avant d’enregistrer le PNG.";
     [alert addButtonWithTitle:@"OK"];
     [NSApp activateIgnoringOtherApps:YES];
     [alert runModal];

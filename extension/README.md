@@ -1,4 +1,4 @@
-# Capture8K 2.5.7 — extension Chrome + app macOS
+# Capture8K 2.6.0 — extension Chrome + app macOS
 
 Capture8K conserve désormais **100 % de la page visible**, sans couper le haut,
 le bas ou les côtés. Le PNG préserve le ratio exact du viewport et son grand
@@ -83,7 +83,7 @@ d’activer une nouvelle version de l’extension sans perdre la dernière sessi
 - App : `~/Applications/Capture8K.app`
 - Pont Chrome :
   `~/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.capture8k.native.json`
-- Extension non empaquetée : dossier `extension` à la racine du dépôt
+- Extension non empaquetée : dossier `Capture8K-Chrome`
 
 Le raccourci **⌘⇧8** est déclaré directement dans Chrome afin de réveiller
 l’extension de façon fiable. L’autorisation `debugger` donne accès à la surface

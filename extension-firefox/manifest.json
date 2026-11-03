@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Capture8K pour Firefox",
+  "description": "Rerastérise la page visible en PNG natif 4K ou 8K avec le moteur Gecko, sans upscale IA ni changement de viewport.",
+  "version": "2.6.0",
+  "permissions": [
+    "activeTab",
+    "nativeMessaging",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "type": "module"
+  },
+  "commands": {
+    "capture-visible": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+8",
+        "mac": "Command+Shift+8"
+      },
+      "description": "Capturer immédiatement la page visible"
+    }
+  },
+  "action": {
+    "default_title": "Capture8K — Capturer la page visible en 4K / 8K",
+    "default_popup": "popup.html"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "capture8k@coraubanne",
+      "strict_min_version": "125.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  }
+}

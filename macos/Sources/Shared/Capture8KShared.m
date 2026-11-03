@@ -41,7 +41,16 @@ static BOOL C8KIsSupportedBrowser(NSRunningApplication *application) {
     return [identifier isEqualToString:@"com.google.chrome"] ||
         [identifier isEqualToString:@"com.google.chrome.beta"] ||
         [identifier isEqualToString:@"com.google.chrome.canary"] ||
-        [identifier isEqualToString:@"com.brave.browser"];
+        [identifier isEqualToString:@"com.brave.browser"] ||
+        [identifier isEqualToString:@"org.mozilla.firefox"] ||
+        [identifier isEqualToString:@"org.mozilla.firefoxdeveloperedition"] ||
+        [identifier isEqualToString:@"org.mozilla.nightly"];
+}
+
+static BOOL C8KIsFirefox(NSRunningApplication *application) {
+    NSString *identifier = application.bundleIdentifier.lowercaseString ?: @"";
+    return [identifier hasPrefix:@"org.mozilla.firefox"] ||
+        [identifier isEqualToString:@"org.mozilla.nightly"];
 }
 
 static pid_t C8KParentProcessIdentifier(pid_t processIdentifier) {
@@ -54,14 +63,16 @@ static pid_t C8KParentProcessIdentifier(pid_t processIdentifier) {
 
 static NSDictionary *C8KStatusForBrowser(NSRunningApplication *browser) {
     NSArray<NSString *> *arguments = C8KArgumentsForProcess(browser.processIdentifier);
-    BOOL ready = [arguments containsObject:@"--silent-debugger-extension-api"];
+    BOOL firefox = C8KIsFirefox(browser);
+    BOOL ready = firefox || [arguments containsObject:@"--silent-debugger-extension-api"];
     return @{
         @"running": @YES,
         @"captureModeReady": @(ready),
         @"browserName": browser.localizedName ?: @"Google Chrome",
         @"bundleIdentifier": browser.bundleIdentifier ?: @"com.google.Chrome",
         @"processIdentifier": @(browser.processIdentifier),
-        @"applicationPath": browser.bundleURL.path ?: @""
+        @"applicationPath": browser.bundleURL.path ?: @"",
+        @"nativeScaleCapture": @(firefox)
     };
 }
 
@@ -76,8 +87,10 @@ NSDictionary *C8KBrowserStatus(void) {
 
     NSArray<NSRunningApplication *> *running = NSWorkspace.sharedWorkspace.runningApplications;
     NSRunningApplication *browser = nil;
+    NSRunningApplication *frontmost = NSWorkspace.sharedWorkspace.frontmostApplication;
+    if (frontmost && C8KIsSupportedBrowser(frontmost)) browser = frontmost;
     for (NSRunningApplication *application in running) {
-        if ([application.bundleIdentifier.lowercaseString isEqualToString:@"com.google.chrome"]) {
+        if (!browser && [application.bundleIdentifier.lowercaseString isEqualToString:@"com.google.chrome"]) {
             browser = application;
             break;
         }
@@ -88,7 +101,7 @@ NSDictionary *C8KBrowserStatus(void) {
         }
     }
     if (!browser) {
-        return @{ @"running": @NO, @"captureModeReady": @NO, @"browserName": @"Google Chrome" };
+        return @{ @"running": @NO, @"captureModeReady": @NO, @"browserName": @"Navigateur" };
     }
     return C8KStatusForBrowser(browser);
 }
