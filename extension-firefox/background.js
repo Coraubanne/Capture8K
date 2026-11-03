@@ -348,16 +348,32 @@ function expectedDimensions(baseline, targetLongEdge) {
 async function captureExactHighResolution(windowId, baseline, format) {
   const expected = expectedDimensions(baseline, format.longEdge);
   const baselineLongEdge = Math.max(baseline.width, baseline.height);
+  const expectedShortEdge = Math.min(expected.width, expected.height);
+  // Firefox arrondit chaque axe séparément après application du zoom de page.
+  // Un écart de quelques pixels sur l’axe court peut donc être inévitable même
+  // lorsque le grand côté est exactement natif (ex. zoom 110 %). La tolérance
+  // reste inférieure à un pixel de la capture source une fois ramenée à l’écran.
+  const shortEdgeTolerance = Math.max(3, Math.ceil(format.longEdge / baselineLongEdge));
   let scale = format.longEdge / baselineLongEdge;
   let capture = null;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
     capture = await captureAtScale(windowId, scale);
     const actualLongEdge = Math.max(capture.width, capture.height);
-    if (capture.width === expected.width && capture.height === expected.height) return { ...capture, ...expected };
+    const actualShortEdge = Math.min(capture.width, capture.height);
+    const shortEdgeDelta = actualShortEdge - expectedShortEdge;
+    if (actualLongEdge === format.longEdge && Math.abs(shortEdgeDelta) <= shortEdgeTolerance) {
+      return {
+        ...capture,
+        expectedWidth: expected.width,
+        expectedHeight: expected.height,
+        shortEdgeDelta,
+        shortEdgeTolerance
+      };
+    }
     scale *= format.longEdge / actualLongEdge;
   }
   throw new Error(
-    `Firefox a produit ${capture.width} × ${capture.height} au lieu de ${expected.width} × ${expected.height}. Aucun fichier incomplet n’a été enregistré.`
+    `Firefox n’a pas pu stabiliser le rendu ${format.label} : ${capture.width} × ${capture.height} obtenu, grand côté ${format.longEdge} px attendu. Aucun fichier incomplet n’a été enregistré.`
   );
 }
 
@@ -466,6 +482,9 @@ async function captureTab(tab, requestedFormatId) {
       targetLongEdge: format.longEdge,
       outputWidth: render.width,
       outputHeight: render.height,
+      expectedRatioWidth: render.expectedWidth,
+      expectedRatioHeight: render.expectedHeight,
+      shortEdgeRounding: render.shortEdgeDelta,
       sourceWidth: prepared.source.width,
       sourceHeight: prepared.source.height,
       fullVisibleViewport: true,

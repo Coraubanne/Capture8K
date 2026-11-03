@@ -1,8 +1,12 @@
-# Capture8K pour Firefox 2.6.0
+# Capture8K pour Firefox 2.6.1
 
 Cette variante utilise directement le moteur Gecko de Firefox. L’option native
 `tabs.captureVisibleTab({ scale })` rerastérise la page visible au facteur requis
 pour obtenir un grand côté de 3 840 px (4K) ou 7 680 px (8K).
+
+Le moteur accepte l’arrondi natif inévitable de Gecko sur l’axe court lorsque
+le zoom de page est fractionnaire (par exemple 110 %), sans redimensionner ni
+modifier le PNG produit par Firefox.
 
 - aucun upscale IA ;
 - aucun changement de viewport ou de media query ;
