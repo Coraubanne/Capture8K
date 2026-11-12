@@ -14,6 +14,8 @@ changement de viewport.
 - capture immédiate du viewport visible complet en 4K ou 8K ;
 - conservation du ratio, du zoom Chrome, du DPR et des media queries ;
 - stabilisation des animations, médias et pages dynamiques ;
+- conservation fidèle des surfaces vidéo, canvas et iframe quand Chrome les
+  compose séparément du document haute résolution ;
 - validation indépendante par l’app macOS avant l’écriture du PNG ;
 - dossier d’export personnalisable ;
 - raccourci macOS `⌘⇧8` ;

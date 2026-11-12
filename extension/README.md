@@ -1,9 +1,9 @@
-# Capture8K 2.6.0 — extension Chrome + app macOS
+# Capture8K 2.6.5 — extension Chrome + app macOS
 
 Capture8K conserve désormais **100 % de la page visible**, sans couper le haut,
 le bas ou les côtés. Le PNG préserve le ratio exact du viewport et son grand
 côté mesure **3 840 px en 4K** ou **7 680 px en 8K**, sans agrandir
-artificiellement une capture existante. La version 2.5.7 travaille directement sur le document déjà affiché,
+artificiellement une capture existante. La version 2.6.5 travaille directement sur le document déjà affiché,
 sans dupliquer l’onglet ni recharger l’URL. Son mode Chrome dédié supprime la
 barre technique qui réduisait brièvement le viewport des sites responsives.
 
@@ -66,9 +66,17 @@ Chrome ne produit pas les dimensions exactes, aucun faux 4K/8K n’est enregistr
 La phase de rendu dispose désormais de 26 secondes, ce qui laisse une enveloppe
 pratique inférieure à 30 secondes pour la capture complète.
 
-Pour les vidéos, mettre la lecture en pause avant la capture donne la meilleure
-correspondance de frame. Les pages internes `chrome://`, le mode image dans
-l’image et certains contenus protégés peuvent rester impossibles à capturer.
+Les vidéos, canvas et cadres intégrés peuvent utiliser une surface de composition
+distincte de celle du document. La version 2.6.5 conserve alors leurs pixels
+réellement visibles et certifie séparément le reste de la page rerastérisé en
+haute définition. Aucun upscale IA n’est utilisé. Les pages internes `chrome://`,
+le mode image dans l’image et certains contenus protégés peuvent rester
+impossibles à capturer.
+
+Sur les sites fortement dynamiques, JavaScript reste actif pendant la capture :
+l’extension fige les animations, transitions, médias et le défilement sans
+désactiver le moteur de la page. Cela évite les écrans blancs et garantit que
+l’onglet revient toujours à son état normal après un échec intermédiaire.
 
 Le mode fidèle repose sur l’option Chrome
 `--silent-debugger-extension-api`. Elle évite la barre qui déforme les pages,

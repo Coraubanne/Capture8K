@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Capture8K",
   "description": "Rerastérise la page visible en PNG natif 4K ou 8K sans déplacer sa mise en page, puis la certifie avec l’app macOS.",
-  "version": "2.6.0",
+  "version": "2.6.5",
   "minimum_chrome_version": "125",
   "permissions": [
     "activeTab",

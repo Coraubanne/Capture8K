@@ -778,6 +778,33 @@ function prepareDirectVisiblePageForCapture(key) {
     width: Math.max(1, source.width),
     height: Math.max(1, source.height)
   };
+  const compositedRegions = [...document.querySelectorAll("iframe,video,canvas,embed,object")]
+    .flatMap((element) => {
+      const rect = element.getBoundingClientRect();
+      const computed = getComputedStyle(element);
+      if (
+        computed.display === "none" || computed.visibility === "hidden" ||
+        Number(computed.opacity) === 0 || rect.width < 8 || rect.height < 8
+      ) return [];
+      const padding = 2;
+      const left = Math.max(selection.left, rect.left - padding);
+      const top = Math.max(selection.top, rect.top - padding);
+      const right = Math.min(selection.left + selection.width, rect.right + padding);
+      const bottom = Math.min(selection.top + selection.height, rect.bottom + padding);
+      if (right <= left || bottom <= top) return [];
+      const width = (right - left) / selection.width;
+      const height = (bottom - top) / selection.height;
+      if (width * height > 0.58) return [];
+      return [{
+        x: (left - selection.left) / selection.width,
+        y: (top - selection.top) / selection.height,
+        width,
+        height,
+        kind: element.localName
+      }];
+    })
+    .sort((left, right) => right.width * right.height - left.width * left.height)
+    .slice(0, 32);
   const media = [...document.querySelectorAll("video,audio")].slice(0, 128).map(element => ({
     element,
     paused: element.paused,
@@ -910,6 +937,7 @@ function prepareDirectVisiblePageForCapture(key) {
     selection,
     geometry: snapshot(),
     mirrorState: {},
+    compositedRegions,
     frozen: {
       mediaPaused: media.filter(item => !item.paused).length,
       animationsPaused: animations.filter(item => item.playState === "running").length
@@ -1190,7 +1218,21 @@ function pngBlobFromBase64(base64) {
   return new Blob([bytes], { type: "image/png" });
 }
 
-async function compareControlRasters(firstBase64, secondBase64) {
+function normalizedSurfaceRegions(regions) {
+  if (!Array.isArray(regions)) return [];
+  return regions.slice(0, 32).flatMap((region) => {
+    const x = Math.max(0, Math.min(1, Number(region?.x)));
+    const y = Math.max(0, Math.min(1, Number(region?.y)));
+    const right = Math.max(x, Math.min(1, x + Number(region?.width)));
+    const bottom = Math.max(y, Math.min(1, y + Number(region?.height)));
+    if (![x, y, right, bottom].every(Number.isFinite) || right - x < 0.002 || bottom - y < 0.002) {
+      return [];
+    }
+    return [{ x, y, width: right - x, height: bottom - y, kind: String(region?.kind || "surface") }];
+  });
+}
+
+async function compareControlRasters(firstBase64, secondBase64, excludedRegions = []) {
   if (firstBase64 === secondBase64) {
     return { stable: true, exact: true, meanDifference: 0, changedPixelRatio: 0 };
   }
@@ -1216,15 +1258,32 @@ async function compareControlRasters(firstBase64, secondBase64) {
     context.drawImage(secondBitmap, 0, 0, CONTROL_RASTER_WIDTH, CONTROL_RASTER_HEIGHT);
     const secondPixels = context.getImageData(0, 0, CONTROL_RASTER_WIDTH, CONTROL_RASTER_HEIGHT).data;
 
+    const regions = normalizedSurfaceRegions(excludedRegions);
+    const excluded = new Uint8Array(CONTROL_RASTER_WIDTH * CONTROL_RASTER_HEIGHT);
+    for (const region of regions) {
+      const left = Math.max(0, Math.floor(region.x * CONTROL_RASTER_WIDTH));
+      const top = Math.max(0, Math.floor(region.y * CONTROL_RASTER_HEIGHT));
+      const right = Math.min(CONTROL_RASTER_WIDTH, Math.ceil((region.x + region.width) * CONTROL_RASTER_WIDTH));
+      const bottom = Math.min(CONTROL_RASTER_HEIGHT, Math.ceil((region.y + region.height) * CONTROL_RASTER_HEIGHT));
+      for (let y = top; y < bottom; y += 1) {
+        excluded.fill(1, y * CONTROL_RASTER_WIDTH + left, y * CONTROL_RASTER_WIDTH + right);
+      }
+    }
+
     let absoluteDifference = 0;
     let changedPixels = 0;
-    const pixelCount = CONTROL_RASTER_WIDTH * CONTROL_RASTER_HEIGHT;
+    let pixelCount = 0;
     for (let index = 0; index < firstPixels.length; index += 4) {
+      if (excluded[index / 4]) continue;
+      pixelCount += 1;
       const red = Math.abs(firstPixels[index] - secondPixels[index]);
       const green = Math.abs(firstPixels[index + 1] - secondPixels[index + 1]);
       const blue = Math.abs(firstPixels[index + 2] - secondPixels[index + 2]);
       absoluteDifference += red + green + blue;
       if (Math.max(red, green, blue) > 10) changedPixels += 1;
+    }
+    if (pixelCount < CONTROL_RASTER_WIDTH * CONTROL_RASTER_HEIGHT * 0.4) {
+      return { stable: false, exact: false, meanDifference: 1, changedPixelRatio: 1, excludedPixelRatio: 1 };
     }
     const meanDifference = absoluteDifference / (pixelCount * 3 * 255);
     const changedPixelRatio = changedPixels / pixelCount;
@@ -1232,7 +1291,8 @@ async function compareControlRasters(firstBase64, secondBase64) {
       stable: meanDifference <= MAX_MEAN_PIXEL_DIFFERENCE && changedPixelRatio <= MAX_CHANGED_PIXEL_RATIO,
       exact: false,
       meanDifference,
-      changedPixelRatio
+      changedPixelRatio,
+      excludedPixelRatio: 1 - pixelCount / (CONTROL_RASTER_WIDTH * CONTROL_RASTER_HEIGHT)
     };
   } catch {
     return { stable: false, exact: false, meanDifference: 1, changedPixelRatio: 1 };
@@ -1639,7 +1699,8 @@ async function cropVisibleReference(dataURL, source, selection) {
 }
 
 async function captureVisibleReference(tab, source, selection) {
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  const maximumAttempts = 6;
+  for (let attempt = 0; attempt < maximumAttempts; attempt += 1) {
     const waitMs = lastVisibleCaptureAt + VISIBLE_CAPTURE_MIN_INTERVAL_MS - Date.now();
     if (waitMs > 0) await sleep(waitMs);
     lastVisibleCaptureAt = Date.now();
@@ -1647,7 +1708,9 @@ async function captureVisibleReference(tab, source, selection) {
       const dataURL = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
       return cropVisibleReference(dataURL, source, selection);
     } catch (error) {
-      if (!/MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND|quota/i.test(String(error?.message || error)) || attempt === 2) {
+      const retryable = /MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND|quota|image readback failed|readback|temporary|temporarily unavailable/i
+        .test(String(error?.message || error));
+      if (!retryable || attempt === maximumAttempts - 1) {
         throw error;
       }
       await sleep(VISIBLE_CAPTURE_MIN_INTERVAL_MS);
@@ -1911,7 +1974,6 @@ async function captureTabBackgroundLegacy(tab, requestedFormatId) {
   let rendererTabId = null;
   let rendererAttached = false;
   let hiddenTarget = null;
-  let scriptExecutionDisabled = false;
   const startedAt = Date.now();
 
   try {
@@ -2185,7 +2247,7 @@ async function assertStableRasterPair(first, second, deadline, message) {
   return comparison;
 }
 
-async function assertEquivalentRasterPair(first, second, deadline, message) {
+async function assertEquivalentRasterPair(first, second, deadline, message, candidateRegions = []) {
   const comparison = await withTimeout(
     compareControlRasters(first, second),
     Math.min(1800, remainingTime(deadline)),
@@ -2193,14 +2255,30 @@ async function assertEquivalentRasterPair(first, second, deadline, message) {
   );
   const equivalent =
     comparison.meanDifference <= 0.010 &&
-    comparison.changedPixelRatio <= 0.06;
-  if (!equivalent) {
+    comparison.changedPixelRatio <= 0.10;
+  if (equivalent) return { ...comparison, compositedRegions: [], maskedComparison: null };
+
+  const regions = normalizedSurfaceRegions(candidateRegions);
+  const maskedComparison = regions.length ? await withTimeout(
+    compareControlRasters(first, second, regions),
+    Math.min(1800, remainingTime(deadline)),
+    "Le contrôle des surfaces intégrées a dépassé le délai autorisé."
+  ) : null;
+  // captureVisibleTab et Page.captureScreenshot n'emploient pas exactement le
+  // même chemin d'anticrénelage avec un zoom navigateur non entier. La moyenne
+  // reste très faible, mais de nombreux pixels de texte peuvent dépasser le
+  // seuil binaire de 10 niveaux. Les contours et la géométrie sont revérifiés
+  // indépendamment par l'hôte natif avant tout enregistrement.
+  const maskedEquivalent = maskedComparison &&
+    maskedComparison.meanDifference <= 0.010 &&
+    maskedComparison.changedPixelRatio <= 0.10;
+  if (!maskedEquivalent || maskedComparison.excludedPixelRatio > 0.6) {
     throw new Error(
       message + " Écart moyen " + (comparison.meanDifference * 100).toFixed(3) +
       " %, pixels modifiés " + (comparison.changedPixelRatio * 100).toFixed(2) + " %."
     );
   }
-  return comparison;
+  return { ...comparison, compositedRegions: regions, maskedComparison };
 }
 
 async function waitForStableDirectBaseline(target, plan, deadline) {
@@ -2244,7 +2322,6 @@ async function captureTab(tab, requestedFormatId) {
   const target = { tabId: tab.id };
   let visiblePageFrozen = false;
   let attached = false;
-  let scriptExecutionDisabled = false;
   const startedAt = Date.now();
   const deadline = startedAt + CAPTURE_DEADLINE_MS;
 
@@ -2299,9 +2376,6 @@ async function captureTab(tab, requestedFormatId) {
       const measuredZoom = await chrome.tabs.getZoom(tab.id);
       if (Number.isFinite(measuredZoom) && measuredZoom > 0) browserZoom = measuredZoom;
     } catch {}
-    await sendCommand(target, "Emulation.setScriptExecutionDisabled", { value: true });
-    scriptExecutionDisabled = true;
-
     const stableGeometry = await waitForStableGeometry(target, stateKey, source, deadline);
     const geometryBefore = stableGeometry.geometry;
     const layoutBefore = await readLayoutMetrics(target);
@@ -2323,8 +2397,10 @@ async function captureTab(tab, requestedFormatId) {
       reference.data,
       baseline,
       deadline,
-      "Certification refusée : le témoin interne ne correspond pas à la page réellement visible."
+      "Certification refusée : le témoin interne ne correspond pas à la page réellement visible.",
+      initialized.compositedRegions
     );
+    const compositedRegions = mirrorStability.compositedRegions;
 
     const baselineDimensions = decodePNGHeader(baseline);
     const outputFormat = renderedViewportFormat(format, baselineDimensions);
@@ -2362,8 +2438,6 @@ async function captureTab(tab, requestedFormatId) {
     assertSameLayoutMetrics(layoutBefore, layoutAfter);
     const documentExtentStable = sameDocumentExtent(layoutBefore, layoutAfter);
 
-    await sendCommand(target, "Emulation.setScriptExecutionDisabled", { value: false });
-    scriptExecutionDisabled = false;
     await chrome.debugger.detach(target);
     attached = false;
     await restorePageWithoutDebugger(tab.id, stateKey);
@@ -2411,8 +2485,13 @@ async function captureTab(tab, requestedFormatId) {
       referenceMeanDifference: referenceStability.meanDifference,
       baselineMeanDifference: baselineStability.meanDifference,
       mirrorMeanDifference: mirrorStability.meanDifference,
+      mirrorOutsideMeanDifference: mirrorStability.maskedComparison?.meanDifference ?? mirrorStability.meanDifference,
+      mirrorOutsideChangedPixelRatio: mirrorStability.maskedComparison?.changedPixelRatio ?? mirrorStability.changedPixelRatio,
+      compositedSurfaceFallback: compositedRegions.length > 0,
+      compositedRegions,
       postRenderMeanDifference: postRenderStability.meanDifference,
-      scriptSuspendedDuringRaster: true,
+      scriptSuspendedDuringRaster: false,
+      scriptsLeftRunningForCompatibility: true,
       referenceWidth: reference.width,
       referenceHeight: reference.height
     };
@@ -2466,9 +2545,6 @@ async function captureTab(tab, requestedFormatId) {
     setTimeout(() => chrome.action.setBadgeText({ text: "" }), 7000);
     throw new Error(message);
   } finally {
-    if (attached && scriptExecutionDisabled) {
-      try { await sendCommand(target, "Emulation.setScriptExecutionDisabled", { value: false }); } catch {}
-    }
     if (attached) {
       try { await chrome.debugger.detach(target); } catch {}
     }

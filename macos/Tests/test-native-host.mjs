@@ -9,11 +9,12 @@ const appRoot = fileURLToPath(new URL("../build/Capture8K.app", import.meta.url)
 const hostPath = join(appRoot, "Contents/MacOS/Capture8KNativeHost");
 const imagePath = process.argv[2]
   ? resolve(process.argv[2])
-  : fileURLToPath(new URL("../../tests/fixtures/native-8k.png", import.meta.url));
+  : fileURLToPath(new URL("../../test-output/live-session-v060.png", import.meta.url));
 const image = await readFile(imagePath);
 const baselinePathArgument = process.argv.find(argument => argument.startsWith("--baseline="));
 const baselineImage = baselinePathArgument ? await readFile(resolve(baselinePathArgument.slice(11))) : image;
 const expectRefusal = process.argv.includes("--expect-refusal");
+const useSurfaceMask = process.argv.includes("--surface-mask");
 const expectedWidth = image.readUInt32BE(16);
 const expectedHeight = image.readUInt32BE(20);
 const temporaryRoot = await mkdtemp(join(tmpdir(), "capture8k-host-test-"));
@@ -78,7 +79,13 @@ try {
   assert.equal(typeof settings.browserName, "string");
 
   const jobId = "native-host-test";
-  send({ type: "save-begin", jobId, filename: "test-certifie.png", expectedWidth, expectedHeight });
+  send({
+    type: "save-begin", jobId, filename: "test-certifie.png", expectedWidth, expectedHeight,
+    certificate: useSurfaceMask ? {
+      compositedSurfaceFallback: true,
+      compositedRegions: [{ x: 0, y: 0, width: 0.5, height: 0.5, kind: "video" }]
+    } : {}
+  });
   const ready = await waitFor(message => message.type === "save-ready" && message.jobId === jobId);
   assert.equal(ready.ok, true);
 
@@ -99,8 +106,10 @@ try {
     assert.equal(completed.ok, true, JSON.stringify(completed));
     assert.equal(completed.width, expectedWidth);
     assert.equal(completed.height, expectedHeight);
-    assert.equal(completed.mirrorMeanDifference, 0);
+    if (useSurfaceMask) assert.ok(completed.mirrorMeanDifference < 0.01);
+    else assert.equal(completed.mirrorMeanDifference, 0);
     assert.equal(completed.renderMeanDifference, 0);
+    assert.equal(completed.compositedSurfaceCount, useSurfaceMask ? 1 : 0);
     const outputFiles = await readdir(outputDirectory);
     assert.equal(outputFiles.length, 1);
     assert.equal(outputFiles[0], "test-certifie.png");

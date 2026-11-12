@@ -240,7 +240,7 @@
 
 - (void)showAbout:(id)sender {
     NSAlert *alert = [NSAlert new];
-    alert.messageText = @"Capture8K 2.6.0";
+    alert.messageText = @"Capture8K 2.6.5";
     alert.informativeText = @"Dans Chrome ou Firefox, ⌘⇧8 capture 100 % de la zone web visible en 4K/8K. Firefox utilise directement le rerendu natif haute densité de Gecko ; Chrome conserve son mode fidèle. L’app compare plusieurs témoins visuels avant d’enregistrer le PNG.";
     [alert addButtonWithTitle:@"OK"];
     [NSApp activateIgnoringOtherApps:YES];

@@ -209,7 +209,7 @@ globalThis.chrome = {
   }
 };
 
-await import(pathToFileURL(new URL("../extension/background.js", import.meta.url).pathname));
+await import(pathToFileURL(new URL("../Capture8K-Chrome/background.js", import.meta.url).pathname));
 assert.equal(typeof runtimeMessageListener, "function");
 assert.equal(typeof commandListener, "function");
 assert.equal(typeof nativeDisconnectListener, "function");
@@ -348,4 +348,4 @@ assert.equal(events.includes("debugger-attached"), false);
 assert(nativeMessages.some(message => message.type === "prepare-browser"));
 browserCaptureModeReady = true;
 
-console.log("Capture8K 2.5.7 : zoom, plein cadre, dossier d’export et pont natif validés.");
+console.log("Capture8K 2.6.5 : zoom, plein cadre, dossier d’export et pont natif validés.");

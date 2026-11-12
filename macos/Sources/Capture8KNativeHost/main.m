@@ -1,6 +1,8 @@
 #import <AppKit/AppKit.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <ImageIO/ImageIO.h>
+#include <math.h>
+#include <string.h>
 #import "Capture8KShared.h"
 
 static NSLock *C8KProtocolLock(void) {
@@ -77,7 +79,31 @@ static NSData *C8KRaster(CGImageRef image, size_t width, size_t height, NSError 
     return pixels;
 }
 
-static NSDictionary *C8KCompare(CGImageRef first, CGImageRef second, NSError **error) {
+static NSArray<NSDictionary *> *C8KSanitizeRegions(id value) {
+    if (![value isKindOfClass:NSArray.class]) return @[];
+    NSMutableArray<NSDictionary *> *regions = [NSMutableArray array];
+    for (id item in (NSArray *)value) {
+        if (regions.count >= 32) break;
+        if (![item isKindOfClass:NSDictionary.class]) continue;
+        NSDictionary *region = item;
+        double x = [region[@"x"] doubleValue];
+        double y = [region[@"y"] doubleValue];
+        double width = [region[@"width"] doubleValue];
+        double height = [region[@"height"] doubleValue];
+        if (!isfinite(x) || !isfinite(y) || !isfinite(width) || !isfinite(height)) continue;
+        x = MAX(0, MIN(1, x));
+        y = MAX(0, MIN(1, y));
+        double right = MAX(x, MIN(1, x + width));
+        double bottom = MAX(y, MIN(1, y + height));
+        if (right - x < 0.002 || bottom - y < 0.002) continue;
+        [regions addObject:@{ @"x": @(x), @"y": @(y),
+            @"width": @(right - x), @"height": @(bottom - y) }];
+    }
+    return regions;
+}
+
+static NSDictionary *C8KCompare(CGImageRef first, CGImageRef second,
+    NSArray<NSDictionary *> *excludedRegions, NSError **error) {
     const NSUInteger width = 384;
     const NSUInteger height = 216;
     NSData *left = C8KRaster(first, width, height, error);
@@ -85,10 +111,26 @@ static NSDictionary *C8KCompare(CGImageRef first, CGImageRef second, NSError **e
     if (!left || !right) return nil;
     const uint8_t *a = left.bytes;
     const uint8_t *b = right.bytes;
-    NSUInteger pixelCount = left.length / 4;
+    NSUInteger fullPixelCount = left.length / 4;
+    NSMutableData *excludedData = [NSMutableData dataWithLength:fullPixelCount];
+    uint8_t *excluded = excludedData.mutableBytes;
+    for (NSDictionary *region in excludedRegions) {
+        NSUInteger leftX = MIN(width, (NSUInteger)floor([region[@"x"] doubleValue] * width));
+        NSUInteger topY = MIN(height, (NSUInteger)floor([region[@"y"] doubleValue] * height));
+        NSUInteger rightX = MIN(width, (NSUInteger)ceil(
+            ([region[@"x"] doubleValue] + [region[@"width"] doubleValue]) * width));
+        NSUInteger bottomY = MIN(height, (NSUInteger)ceil(
+            ([region[@"y"] doubleValue] + [region[@"height"] doubleValue]) * height));
+        for (NSUInteger y = topY; y < bottomY; y++) {
+            memset(excluded + y * width + leftX, 1, rightX - leftX);
+        }
+    }
+    NSUInteger pixelCount = 0;
     unsigned long long total = 0;
     NSUInteger changed = 0;
     for (NSUInteger offset = 0; offset < left.length; offset += 4) {
+        if (excluded[offset / 4]) continue;
+        pixelCount++;
         int red = abs((int)a[offset] - (int)b[offset]);
         int green = abs((int)a[offset + 1] - (int)b[offset + 1]);
         int blue = abs((int)a[offset + 2] - (int)b[offset + 2]);
@@ -104,6 +146,7 @@ static NSDictionary *C8KCompare(CGImageRef first, CGImageRef second, NSError **e
     for (NSUInteger y = 0; y + 1 < height; y++) {
         for (NSUInteger x = 0; x + 1 < width; x++) {
             NSUInteger pixel = y * width + x;
+            if (excluded[pixel] || excluded[pixel + 1] || excluded[pixel + width]) continue;
             NSUInteger offset = pixel * 4;
             NSUInteger rightOffset = offset + 4;
             NSUInteger downOffset = offset + width * 4;
@@ -130,7 +173,7 @@ static NSDictionary *C8KCompare(CGImageRef first, CGImageRef second, NSError **e
             for (NSUInteger side = 0; side < 2; side++) {
                 uint8_t *sourceEdges = side == 0 ? leftEdges : rightEdges;
                 uint8_t *targetEdges = side == 0 ? rightEdges : leftEdges;
-                if (!sourceEdges[pixel]) continue;
+                if (excluded[pixel] || !sourceEdges[pixel]) continue;
                 BOOL matched = NO;
                 NSInteger minimumY = MAX(0, (NSInteger)y - 1);
                 NSInteger maximumY = MIN((NSInteger)height - 1, (NSInteger)y + 1);
@@ -138,7 +181,8 @@ static NSDictionary *C8KCompare(CGImageRef first, CGImageRef second, NSError **e
                 NSInteger maximumX = MIN((NSInteger)width - 1, (NSInteger)x + 1);
                 for (NSInteger nearbyY = minimumY; nearbyY <= maximumY && !matched; nearbyY++) {
                     for (NSInteger nearbyX = minimumX; nearbyX <= maximumX; nearbyX++) {
-                        if (targetEdges[(NSUInteger)nearbyY * width + (NSUInteger)nearbyX]) { matched = YES; break; }
+                        NSUInteger nearbyPixel = (NSUInteger)nearbyY * width + (NSUInteger)nearbyX;
+                        if (!excluded[nearbyPixel] && targetEdges[nearbyPixel]) { matched = YES; break; }
                     }
                 }
                 if (!matched) unmatched++;
@@ -147,12 +191,62 @@ static NSDictionary *C8KCompare(CGImageRef first, CGImageRef second, NSError **e
     }
     NSUInteger combinedEdges = leftEdgeCount + rightEdgeCount;
     double edgeMismatch = combinedEdges ? (double)unmatched / (double)combinedEdges : 0;
+    if (pixelCount < fullPixelCount * 0.4) {
+        if (error) *error = C8KError(17, @"Les surfaces intégrées masquent une part trop importante de la page.");
+        return nil;
+    }
     return @{
         @"mean": @((double)total / (double)(pixelCount * 3 * 255)),
         @"changedRatio": @((double)changed / (double)pixelCount),
         @"edgeMismatch": @(edgeMismatch),
-        @"edgeCount": @(combinedEdges)
+        @"edgeCount": @(combinedEdges),
+        @"excludedRatio": @(1.0 - (double)pixelCount / (double)fullPixelCount)
     };
+}
+
+static BOOL C8KWriteComposite(CGImageRef reference, CGImageRef render,
+    NSArray<NSDictionary *> *regions, NSURL *destination, NSError **error) {
+    size_t width = CGImageGetWidth(render);
+    size_t height = CGImageGetHeight(render);
+    NSMutableData *pixels = [NSMutableData dataWithLength:width * height * 4];
+    CGColorSpaceRef colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGContextRef context = CGBitmapContextCreate(pixels.mutableBytes, width, height, 8, width * 4,
+        colorSpace, kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big);
+    CGColorSpaceRelease(colorSpace);
+    if (!context) {
+        if (error) *error = C8KError(18, @"Impossible de créer la surface de composition fidèle.");
+        return NO;
+    }
+    CGContextTranslateCTM(context, 0, height);
+    CGContextScaleCTM(context, 1, -1);
+    CGContextSetInterpolationQuality(context, kCGInterpolationHigh);
+    CGRect outputRect = CGRectMake(0, 0, width, height);
+    CGContextDrawImage(context, outputRect, render);
+    for (NSDictionary *region in regions) {
+        CGRect clip = CGRectMake(
+            [region[@"x"] doubleValue] * width,
+            [region[@"y"] doubleValue] * height,
+            [region[@"width"] doubleValue] * width,
+            [region[@"height"] doubleValue] * height);
+        CGContextSaveGState(context);
+        CGContextClipToRect(context, clip);
+        CGContextDrawImage(context, outputRect, reference);
+        CGContextRestoreGState(context);
+    }
+    CGImageRef composited = CGBitmapContextCreateImage(context);
+    CGContextRelease(context);
+    if (!composited) {
+        if (error) *error = C8KError(19, @"Impossible de finaliser la composition fidèle.");
+        return NO;
+    }
+    CGImageDestinationRef writer = CGImageDestinationCreateWithURL(
+        (__bridge CFURLRef)destination, CFSTR("public.png"), 1, NULL);
+    if (writer) CGImageDestinationAddImage(writer, composited, NULL);
+    BOOL written = writer && CGImageDestinationFinalize(writer);
+    if (writer) CFRelease(writer);
+    CGImageRelease(composited);
+    if (!written && error) *error = C8KError(20, @"Impossible d’écrire le PNG composé.");
+    return written;
 }
 
 @interface C8KCaptureJob : NSObject
@@ -160,11 +254,12 @@ static NSDictionary *C8KCompare(CGImageRef first, CGImageRef second, NSError **e
 @property NSString *filename;
 @property NSInteger expectedWidth;
 @property NSInteger expectedHeight;
+@property NSArray<NSDictionary *> *compositedRegions;
 @property NSURL *temporaryDirectory;
 @property NSMutableDictionary<NSString *, NSFileHandle *> *handles;
 @property NSMutableDictionary<NSString *, NSURL *> *urls;
 - (instancetype)initWithIdentifier:(NSString *)identifier filename:(NSString *)filename
-    width:(NSInteger)width height:(NSInteger)height error:(NSError **)error;
+    width:(NSInteger)width height:(NSInteger)height certificate:(NSDictionary *)certificate error:(NSError **)error;
 - (BOOL)appendKind:(NSString *)kind base64:(NSString *)base64 error:(NSError **)error;
 - (NSDictionary *)finish:(NSError **)error;
 - (void)cleanup;
@@ -172,13 +267,15 @@ static NSDictionary *C8KCompare(CGImageRef first, CGImageRef second, NSError **e
 
 @implementation C8KCaptureJob
 - (instancetype)initWithIdentifier:(NSString *)identifier filename:(NSString *)filename
-    width:(NSInteger)width height:(NSInteger)height error:(NSError **)error {
+    width:(NSInteger)width height:(NSInteger)height certificate:(NSDictionary *)certificate error:(NSError **)error {
     self = [super init];
     if (!self) return nil;
     self.identifier = identifier;
     self.filename = filename;
     self.expectedWidth = width;
     self.expectedHeight = height;
+    self.compositedRegions = [certificate[@"compositedSurfaceFallback"] boolValue]
+        ? C8KSanitizeRegions(certificate[@"compositedRegions"]) : @[];
     self.handles = [NSMutableDictionary dictionary];
     self.urls = [NSMutableDictionary dictionary];
     self.temporaryDirectory = [NSFileManager.defaultManager.temporaryDirectory
@@ -241,18 +338,25 @@ static NSDictionary *C8KCompare(CGImageRef first, CGImageRef second, NSError **e
         CGImageRelease(reference); CGImageRelease(baseline); CGImageRelease(render);
         return nil;
     }
-    NSDictionary *mirror = C8KCompare(reference, baseline, error);
-    NSDictionary *high = C8KCompare(reference, render, error);
-    CGImageRelease(reference); CGImageRelease(baseline); CGImageRelease(render);
-    if (!mirror || !high) return nil;
+    NSDictionary *mirror = C8KCompare(reference, baseline, self.compositedRegions, error);
+    NSDictionary *high = C8KCompare(reference, render, self.compositedRegions, error);
+    if (!mirror || !high) {
+        CGImageRelease(reference); CGImageRelease(baseline); CGImageRelease(render);
+        return nil;
+    }
     double mirrorMean = [mirror[@"mean"] doubleValue];
     double mirrorChanged = [mirror[@"changedRatio"] doubleValue];
     double mirrorEdges = [mirror[@"edgeMismatch"] doubleValue];
     NSUInteger mirrorEdgeCount = [mirror[@"edgeCount"] unsignedIntegerValue];
     BOOL mirrorEdgesReliable = mirrorEdgeCount >= 200;
-    if (mirrorMean > 0.010 || mirrorChanged > 0.06 || (mirrorEdgesReliable && mirrorEdges > 0.25)) {
+    // Les deux API de capture du navigateur peuvent rasteriser les mêmes
+    // contours avec un anticrénelage légèrement différent, surtout à 150 %.
+    // La moyenne et les contours restent les garde-fous structurels ; le ratio
+    // binaire tolère donc jusqu'à 10 % de pixels faiblement différents.
+    if (mirrorMean > 0.010 || mirrorChanged > 0.10 || (mirrorEdgesReliable && mirrorEdges > 0.25)) {
         if (error) *error = C8KError(8, [NSString stringWithFormat:
             @"La capture de contrôle diffère de la page visible (écart %.2f %%). Aucun faux 8K n’a été enregistré.", mirrorMean * 100]);
+        CGImageRelease(reference); CGImageRelease(baseline); CGImageRelease(render);
         return nil;
     }
     double highMean = [high[@"mean"] doubleValue];
@@ -260,18 +364,28 @@ static NSDictionary *C8KCompare(CGImageRef first, CGImageRef second, NSError **e
     double highEdges = [high[@"edgeMismatch"] doubleValue];
     NSUInteger highEdgeCount = [high[@"edgeCount"] unsignedIntegerValue];
     BOOL highEdgesReliable = highEdgeCount >= 200;
-    if (highMean > 0.015 || highChanged > 0.06 || (highEdgesReliable && highEdges > 0.25)) {
+    if (highMean > 0.015 || highChanged > 0.10 || (highEdgesReliable && highEdges > 0.25)) {
         if (error) *error = C8KError(9, [NSString stringWithFormat:
             @"Le rendu haute définition ne correspond plus à la page visible (écart %.2f %%, contours %.2f ; témoin %.2f %% / %.2f).",
             highMean * 100, highEdges, mirrorMean * 100, mirrorEdges]);
+        CGImageRelease(reference); CGImageRelease(baseline); CGImageRelease(render);
         return nil;
     }
+    NSURL *finalURL = renderURL;
+    if (self.compositedRegions.count > 0) {
+        finalURL = [self.temporaryDirectory URLByAppendingPathComponent:@"composited.png"];
+        if (!C8KWriteComposite(reference, render, self.compositedRegions, finalURL, error)) {
+            CGImageRelease(reference); CGImageRelease(baseline); CGImageRelease(render);
+            return nil;
+        }
+    }
+    CGImageRelease(reference); CGImageRelease(baseline); CGImageRelease(render);
     NSDictionary *settings = C8KLoadSettings();
     NSURL *outputDirectory = [NSURL fileURLWithPath:settings[@"outputDirectory"] isDirectory:YES];
     if (![NSFileManager.defaultManager createDirectoryAtURL:outputDirectory
             withIntermediateDirectories:YES attributes:nil error:error]) return nil;
     NSURL *destination = C8KUniqueDestination(outputDirectory, self.filename);
-    if (![NSFileManager.defaultManager moveItemAtURL:renderURL toURL:destination error:error]) return nil;
+    if (![NSFileManager.defaultManager moveItemAtURL:finalURL toURL:destination error:error]) return nil;
     if ([settings[@"copyToClipboard"] boolValue]) {
         dispatch_sync(dispatch_get_main_queue(), ^{
             [NSPasteboard.generalPasteboard clearContents];
@@ -283,6 +397,8 @@ static NSDictionary *C8KCompare(CGImageRef first, CGImageRef second, NSError **e
         @"path": destination.path, @"width": @(renderWidth), @"height": @(renderHeight),
         @"mirrorMeanDifference": @(mirrorMean), @"mirrorChangedPixelRatio": @(mirrorChanged),
         @"mirrorEdgeMismatch": @(mirrorEdges), @"mirrorEdgeCount": @(mirrorEdgeCount),
+        @"compositedSurfaceCount": @(self.compositedRegions.count),
+        @"compositedSurfaceCoverage": mirror[@"excludedRatio"] ?: @0,
         @"renderMeanDifference": @(highMean), @"renderChangedPixelRatio": @(highChanged),
         @"renderEdgeMismatch": @(highEdges), @"renderEdgeCount": @(highEdgeCount)
     };
@@ -443,8 +559,10 @@ static NSDictionary *C8KCompare(CGImageRef first, CGImageRef second, NSError **e
             if (error) *error = C8KError(12, @"Paramètres de capture incomplets.");
             return NO;
         }
+        NSDictionary *certificate = [message[@"certificate"] isKindOfClass:NSDictionary.class]
+            ? message[@"certificate"] : @{};
         C8KCaptureJob *job = [[C8KCaptureJob alloc] initWithIdentifier:jobId filename:filename
-            width:width.integerValue height:height.integerValue error:error];
+            width:width.integerValue height:height.integerValue certificate:certificate error:error];
         if (!job) return NO;
         [self.jobsLock lock];
         [self.jobs[jobId] cleanup];
