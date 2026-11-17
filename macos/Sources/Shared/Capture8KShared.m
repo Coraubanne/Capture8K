@@ -73,6 +73,16 @@ static NSURL *C8KBrowserLocalStateURL(NSString *bundleIdentifier) {
         URLByAppendingPathComponent:@"Local State" isDirectory:NO];
 }
 
+static NSString *C8KLastUsedProfileDirectory(NSString *bundleIdentifier) {
+    NSURL *url = C8KBrowserLocalStateURL(bundleIdentifier);
+    NSData *data = url ? [NSData dataWithContentsOfURL:url] : nil;
+    NSDictionary *root = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+    NSString *directory = [root[@"profile"][@"last_used"] isKindOfClass:NSString.class]
+        ? root[@"profile"][@"last_used"] : nil;
+    if (directory.length == 0 || [directory containsString:@"/"] || [directory containsString:@"\\"]) return nil;
+    return directory;
+}
+
 BOOL C8KPersistentCaptureModeConfigured(NSString *bundleIdentifier) {
     NSURL *url = C8KBrowserLocalStateURL(bundleIdentifier);
     NSData *data = url ? [NSData dataWithContentsOfURL:url] : nil;
@@ -81,7 +91,7 @@ BOOL C8KPersistentCaptureModeConfigured(NSString *bundleIdentifier) {
         ? root[@"browser"][@"enabled_labs_experiments"] : @[];
     for (id value in experiments) {
         if ([value isKindOfClass:NSString.class] &&
-            [(NSString *)value hasPrefix:@"silent-debugger-extension-api@1"]) return YES;
+            [(NSString *)value isEqualToString:@"silent-debugger-extension-api"]) return YES;
     }
     return NO;
 }
@@ -110,7 +120,9 @@ BOOL C8KInstallPersistentCaptureMode(NSString *bundleIdentifier, NSError **error
                 [(NSString *)value hasPrefix:@"silent-debugger-extension-api"];
         }];
     if (obsoleteEntries.count > 0) [experiments removeObjectsAtIndexes:obsoleteEntries];
-    [experiments addObject:@"silent-debugger-extension-api@1"];
+    // SINGLE_VALUE_TYPE flags are stored under their bare internal name.
+    // The "@N" suffix is reserved for multi-choice flags; Chrome sanitizes it away here.
+    [experiments addObject:@"silent-debugger-extension-api"];
     browser[@"enabled_labs_experiments"] = experiments;
     root[@"browser"] = browser;
 
@@ -130,7 +142,7 @@ static NSDictionary *C8KStatusForBrowser(NSRunningApplication *browser) {
     NSArray<NSString *> *arguments = C8KArgumentsForProcess(browser.processIdentifier);
     BOOL firefox = C8KIsFirefox(browser);
     BOOL ready = firefox || [arguments containsObject:@"--silent-debugger-extension-api"];
-    return @{
+    NSMutableDictionary *status = [@{
         @"running": @YES,
         @"captureModeReady": @(ready),
         @"browserName": browser.localizedName ?: @"Google Chrome",
@@ -139,7 +151,10 @@ static NSDictionary *C8KStatusForBrowser(NSRunningApplication *browser) {
         @"applicationPath": browser.bundleURL.path ?: @"",
         @"persistentCaptureMode": @(firefox || C8KPersistentCaptureModeConfigured(browser.bundleIdentifier)),
         @"nativeScaleCapture": @(firefox)
-    };
+    } mutableCopy];
+    NSString *profileDirectory = firefox ? nil : C8KLastUsedProfileDirectory(browser.bundleIdentifier);
+    if (profileDirectory) status[@"profileDirectory"] = profileDirectory;
+    return status;
 }
 
 NSDictionary *C8KBrowserStatus(void) {

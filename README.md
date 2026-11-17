@@ -16,7 +16,7 @@ changement de viewport.
 - stabilisation des animations, médias et pages dynamiques ;
 - conservation fidèle des surfaces vidéo, canvas et iframe quand Chrome les
   compose séparément du document haute résolution ;
-- mode fidèle Chrome persistant après les redémarrages et mises à jour ;
+- garde locale qui rétablit automatiquement le mode fidèle après chaque lancement de Chrome ;
 - validation indépendante par l’app macOS avant l’écriture du PNG ;
 - dossier d’export personnalisable ;
 - raccourci macOS `⌘⇧8` ;
@@ -40,9 +40,9 @@ changement de viewport.
    ./install-macos.sh IDENTIFIANT_DE_L_EXTENSION
    ```
 
-4. Ouvrir Capture8K depuis `~/Applications`, puis utiliser **Préparer Chrome**
-   une seule fois. L’app active le mode fidèle dans les réglages persistants de
-   Chrome, relance le navigateur et restaure la session précédente.
+4. L’installation démarre l’agent Capture8K à l’ouverture de session. Si Chrome
+   est lancé sans son mode fidèle, l’agent le relance automatiquement avec la
+   session précédente ; aucune réparation manuelle récurrente n’est nécessaire.
 
 Pour tester Firefox sans publication AMO, ouvrir
 `about:debugging#/runtime/this-firefox`, cliquer sur **Charger un module
@@ -65,9 +65,10 @@ des prochaines captures.
 - `install-macos.sh` : compilation, installation de l’app et génération du
   manifeste Native Messaging propre à l’utilisateur.
 
-Chrome utilise `chrome.debugger` et `Page.captureScreenshot`. L’app active de
-façon persistante `silent-debugger-extension-api` afin d’éviter la barre
-technique qui modifierait la hauteur des pages responsives. Firefox utilise directement
+Chrome utilise `chrome.debugger` et `Page.captureScreenshot`. L’agent local
+surveille Chrome et le relance avec `silent-debugger-extension-api` lorsque cet
+argument manque, afin d’éviter la barre technique qui modifierait la hauteur
+des pages responsives. Firefox utilise directement
 `tabs.captureVisibleTab` avec le facteur d’échelle natif de Gecko. Dans les deux
 cas, l’app certifie les dimensions et compare des captures témoins avant
 d’enregistrer le fichier.

@@ -36,7 +36,7 @@ int main(void) {
         NSDictionary *result = [NSJSONSerialization JSONObjectWithData:resultData options:0 error:nil];
         NSArray *experiments = result[@"browser"][@"enabled_labs_experiments"];
         C8KRequire([experiments containsObject:@"existing-flag@1"], @"Un autre réglage Chrome a été perdu.");
-        C8KRequire([experiments containsObject:@"silent-debugger-extension-api@1"],
+        C8KRequire([experiments containsObject:@"silent-debugger-extension-api"],
             @"Le mode Capture8K n’a pas été activé.");
         C8KRequire(![experiments containsObject:@"silent-debugger-extension-api@2"],
             @"L’ancien réglage désactivé n’a pas été remplacé.");

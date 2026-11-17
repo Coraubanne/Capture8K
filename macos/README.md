@@ -1,8 +1,8 @@
 # Capture8K.app
 
-Compagnon macOS natif des extensions Capture8K 2.7.0 pour Chrome et Firefox.
+Compagnon macOS natif des extensions Capture8K 2.7.3 pour Chrome et Firefox.
 
-- activation persistante et relance consentie de Chrome en mode fidèle ;
+- garde automatique qui relance Chrome en mode fidèle uniquement lorsqu'il manque ;
 - prise en charge directe du rerendu haute densité natif de Firefox ;
 - menu 4K / 8K dans la barre des menus ;
 - réglages partagés avec le raccourci Chrome `⌘⇧8` ;

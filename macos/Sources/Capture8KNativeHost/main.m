@@ -508,21 +508,15 @@ static BOOL C8KWriteComposite(CGImageRef reference, CGImageRef render,
         return YES;
     }
     if ([type isEqualToString:@"prepare-browser"]) {
-        NSArray<NSRunningApplication *> *runningApps =
-            [NSRunningApplication runningApplicationsWithBundleIdentifier:@"com.capture8k.app"];
-        if (runningApps.count > 0) {
-            [NSDistributedNotificationCenter.defaultCenter postNotificationName:C8KPrepareBrowserNotification
-                object:nil userInfo:nil deliverImmediately:YES];
-        } else {
-            NSURL *executable = [NSURL fileURLWithPath:NSProcessInfo.processInfo.arguments.firstObject].standardizedURL;
-            NSURL *appURL = executable.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent;
-            [NSWorkspace.sharedWorkspace openApplicationAtURL:appURL
-                configuration:[NSWorkspaceOpenConfiguration configuration]
-                completionHandler:^(__unused NSRunningApplication *application, __unused NSError *launchError) {
-                    [NSDistributedNotificationCenter.defaultCenter
-                        postNotificationName:C8KPrepareBrowserNotification object:nil
-                        userInfo:nil deliverImmediately:YES];
-                }];
+        NSURL *hostExecutable = [NSURL fileURLWithPath:NSProcessInfo.processInfo.arguments.firstObject].standardizedURL;
+        NSURL *appURL = hostExecutable.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent;
+        NSURL *appExecutable = [appURL URLByAppendingPathComponent:@"Contents/MacOS/Capture8K"];
+        NSError *launchError = nil;
+        NSTask *task = [NSTask launchedTaskWithExecutableURL:appExecutable
+            arguments:@[ @"--prepare-browser-direct" ] error:&launchError terminationHandler:nil];
+        if (!task) {
+            if (error) *error = launchError ?: C8KError(12, @"Le préparateur Chrome n’a pas pu démarrer.");
+            return NO;
         }
         C8KWriteMessage(@{ @"type": @"browser-preparation-opened", @"ok": @YES });
         return YES;

@@ -1,6 +1,54 @@
 #import <AppKit/AppKit.h>
 #import "Capture8KShared.h"
 
+static NSArray<NSString *> *C8KChromeLaunchArguments(NSDictionary *status) {
+    NSMutableArray<NSString *> *arguments = [NSMutableArray arrayWithObject:@"--silent-debugger-extension-api"];
+    NSString *profileDirectory = [status[@"profileDirectory"] isKindOfClass:NSString.class]
+        ? status[@"profileDirectory"] : nil;
+    if (profileDirectory.length > 0) {
+        [arguments addObject:[NSString stringWithFormat:@"--profile-directory=%@", profileDirectory]];
+    }
+    [arguments addObject:@"--restore-last-session"];
+    return arguments;
+}
+
+static int C8KPrepareBrowserDirectly(void) {
+    NSDictionary *status = C8KBrowserStatus();
+    NSString *applicationPath = status[@"applicationPath"];
+    NSURL *applicationURL = applicationPath.length > 0
+        ? [NSURL fileURLWithPath:applicationPath isDirectory:YES]
+        : [NSWorkspace.sharedWorkspace URLForApplicationWithBundleIdentifier:@"com.google.Chrome"];
+    if (!applicationURL) return 2;
+
+    NSNumber *processIdentifier = status[@"processIdentifier"];
+    NSRunningApplication *browser = processIdentifier
+        ? [NSRunningApplication runningApplicationWithProcessIdentifier:processIdentifier.intValue] : nil;
+    if (browser && ![browser terminate]) return 3;
+
+    NSDate *terminationDeadline = [NSDate dateWithTimeIntervalSinceNow:10.0];
+    while (browser && !browser.terminated && terminationDeadline.timeIntervalSinceNow > 0) {
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+    }
+    if (browser && !browser.terminated) return 4;
+
+    NSWorkspaceOpenConfiguration *configuration = [NSWorkspaceOpenConfiguration configuration];
+    configuration.arguments = C8KChromeLaunchArguments(status);
+    configuration.activates = YES;
+
+    __block BOOL launchFinished = NO;
+    __block NSError *launchError = nil;
+    [NSWorkspace.sharedWorkspace openApplicationAtURL:applicationURL configuration:configuration
+        completionHandler:^(__unused NSRunningApplication *application, NSError *error) {
+            launchError = error;
+            launchFinished = YES;
+        }];
+    NSDate *launchDeadline = [NSDate dateWithTimeIntervalSinceNow:10.0];
+    while (!launchFinished && launchDeadline.timeIntervalSinceNow > 0) {
+        [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+    }
+    return launchFinished && !launchError ? 0 : 5;
+}
+
 @interface Capture8KApplicationDelegate : NSObject <NSApplicationDelegate>
 @property NSStatusItem *statusItem;
 @property NSMenuItem *resolution4KItem;
@@ -11,6 +59,7 @@
 @property NSTimer *statusTimer;
 @property BOOL preparingBrowser;
 @property BOOL folderPanelVisible;
+@property NSDate *nextAutomaticPrepareAt;
 - (void)requestCapture:(id)sender;
 @end
 
@@ -89,23 +138,33 @@
     self.browserStatusItem.title = firefox
         ? [NSString stringWithFormat:@"%@ : moteur 4K/8K natif prêt", browserName]
         : (ready ? [NSString stringWithFormat:@"%@ : mode fidèle actif", browserName]
-                 : (running ? [NSString stringWithFormat:@"%@ : relance requise", browserName]
+                 : (running ? [NSString stringWithFormat:@"%@ : correction automatique…", browserName]
                             : @"Navigateur : fermé"));
     self.prepareBrowserItem.title = firefox
         ? @"Firefox ne nécessite aucune préparation"
         : (ready ? @"Recharger Capture8K dans Chrome…"
-                 : (running ? @"Relancer Chrome en mode Capture8K…" : @"Ouvrir Chrome en mode Capture8K"));
+                 : (running ? @"Corriger Chrome maintenant…" : @"Ouvrir Chrome en mode Capture8K"));
     self.prepareBrowserItem.enabled = !firefox && !self.preparingBrowser;
     self.statusItem.button.title = [NSString stringWithFormat:@"%@%@", is4K ? @"4K" : @"8K", ready ? @"" : @"!"];
     self.statusItem.button.toolTip = firefox
         ? @"Capture8K — Firefox prêt"
         : (ready ? @"Capture8K — Chrome prêt" : @"Capture8K — préparer Chrome");
+
+    BOOL automaticPreparationAllowed = !self.nextAutomaticPrepareAt ||
+        self.nextAutomaticPrepareAt.timeIntervalSinceNow <= 0;
+    if (!firefox && running && !ready && !self.preparingBrowser && automaticPreparationAllowed) {
+        // Chrome ne sait pas conserver ce commutateur entre deux lancements.
+        // L'agent Capture8K le réapplique donc automatiquement et limite les
+        // nouvelles tentatives si Chrome refuse momentanément de se fermer.
+        self.nextAutomaticPrepareAt = [NSDate dateWithTimeIntervalSinceNow:30.0];
+        dispatch_async(dispatch_get_main_queue(), ^{ [self prepareBrowserRequiringConfirmation:NO]; });
+    }
 }
 
 - (void)refreshBrowserStatus:(id)sender { [self refreshMenu]; }
 
 - (void)prepareBrowserRequested:(NSNotification *)notification {
-    dispatch_async(dispatch_get_main_queue(), ^{ [self prepareBrowser:nil]; });
+    dispatch_async(dispatch_get_main_queue(), ^{ [self prepareBrowserRequiringConfirmation:NO]; });
 }
 
 - (void)chooseFolderRequested:(NSNotification *)notification {
@@ -121,11 +180,9 @@
     [alert runModal];
 }
 
-- (void)launchBrowserAtURL:(NSURL *)applicationURL persistentMode:(BOOL)persistentMode {
+- (void)launchBrowserAtURL:(NSURL *)applicationURL arguments:(NSArray<NSString *> *)arguments {
     NSWorkspaceOpenConfiguration *configuration = [NSWorkspaceOpenConfiguration configuration];
-    configuration.arguments = persistentMode
-        ? @[ @"--restore-last-session" ]
-        : @[ @"--silent-debugger-extension-api", @"--restore-last-session" ];
+    configuration.arguments = arguments;
     configuration.activates = YES;
     [NSWorkspace.sharedWorkspace openApplicationAtURL:applicationURL configuration:configuration
         completionHandler:^(__unused NSRunningApplication *application, NSError *launchError) {
@@ -138,9 +195,14 @@
 }
 
 - (void)prepareBrowser:(id)sender {
+    [self prepareBrowserRequiringConfirmation:YES];
+}
+
+- (void)prepareBrowserRequiringConfirmation:(BOOL)requiresConfirmation {
     if (self.preparingBrowser) return;
     NSDictionary *status = C8KBrowserStatus();
     BOOL alreadyReady = [status[@"captureModeReady"] boolValue];
+    NSArray<NSString *> *launchArguments = C8KChromeLaunchArguments(status);
 
     NSURL *applicationURL = nil;
     NSString *applicationPath = status[@"applicationPath"];
@@ -153,19 +215,20 @@
         return;
     }
 
-    NSString *bundleIdentifier = status[@"bundleIdentifier"] ?: @"com.google.Chrome";
     if ([status[@"running"] boolValue]) {
+        if (requiresConfirmation) {
         NSAlert *confirmation = [NSAlert new];
         confirmation.messageText = alreadyReady
             ? @"Recharger la nouvelle version de Capture8K ?"
-            : @"Activer Capture8K définitivement dans Chrome ?";
+            : @"Activer le mode fidèle de Capture8K ?";
         confirmation.informativeText = alreadyReady
             ? @"Capture8K va fermer puis rouvrir Chrome avec la dernière session et charger le nouveau moteur qui conserve le zoom et le viewport de chaque site. Enregistre d’abord tout formulaire en cours."
-            : @"Capture8K va enregistrer son mode fidèle dans Chrome, puis le relancer une dernière fois. Ce réglage persiste après les redémarrages et les mises à jour. Chrome restaurera la dernière session. Enregistre d’abord tout formulaire en cours. Le mode masque aussi la barre de débogage des extensions : conserve uniquement des extensions de confiance.";
+            : @"Capture8K va fermer puis rouvrir Chrome en restaurant la dernière session. L’agent Capture8K vérifiera ensuite automatiquement ce mode à chaque nouveau lancement. Enregistre d’abord tout formulaire en cours. Le mode masque aussi la barre de débogage des extensions : conserve uniquement des extensions de confiance.";
         [confirmation addButtonWithTitle:@"Relancer Chrome"];
         [confirmation addButtonWithTitle:@"Annuler"];
         [NSApp activateIgnoringOtherApps:YES];
         if ([confirmation runModal] != NSAlertFirstButtonReturn) return;
+        }
 
         NSNumber *processIdentifier = status[@"processIdentifier"];
         NSRunningApplication *browser = processIdentifier
@@ -192,13 +255,7 @@
         self.preparingBrowser = YES;
         [self refreshMenu];
     }
-    NSError *persistentError = nil;
-    BOOL persistentMode = C8KInstallPersistentCaptureMode(bundleIdentifier, &persistentError);
-    if (!persistentMode && persistentError) {
-        NSLog(@"Capture8K: mode Chrome persistant indisponible, utilisation du lancement de secours: %@",
-            persistentError.localizedDescription);
-    }
-    [self launchBrowserAtURL:applicationURL persistentMode:persistentMode];
+    [self launchBrowserAtURL:applicationURL arguments:launchArguments];
 }
 
 - (void)updateResolution:(NSString *)resolution {
@@ -249,7 +306,7 @@
 
 - (void)showAbout:(id)sender {
     NSAlert *alert = [NSAlert new];
-    alert.messageText = @"Capture8K 2.7.0";
+    alert.messageText = @"Capture8K 2.7.3";
     alert.informativeText = @"Dans Chrome ou Firefox, ⌘⇧8 capture 100 % de la zone web visible en 4K/8K. Firefox utilise directement le rerendu natif haute densité de Gecko ; Chrome conserve son mode fidèle. L’app compare plusieurs témoins visuels avant d’enregistrer le PNG.";
     [alert addButtonWithTitle:@"OK"];
     [NSApp activateIgnoringOtherApps:YES];
@@ -269,6 +326,9 @@ int main(int argc, const char *argv[]) {
             [NSDistributedNotificationCenter.defaultCenter postNotificationName:C8KPrepareBrowserNotification
                 object:nil userInfo:nil deliverImmediately:YES];
             return 0;
+        }
+        if (argc > 1 && strcmp(argv[1], "--prepare-browser-direct") == 0) {
+            return C8KPrepareBrowserDirectly();
         }
         if (argc > 1 && strcmp(argv[1], "--choose-folder") == 0) {
             [NSDistributedNotificationCenter.defaultCenter postNotificationName:C8KChooseFolderNotification
