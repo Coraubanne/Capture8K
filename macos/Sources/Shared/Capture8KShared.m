@@ -53,6 +53,71 @@ static BOOL C8KIsFirefox(NSRunningApplication *application) {
         [identifier isEqualToString:@"org.mozilla.nightly"];
 }
 
+static NSString *C8KBrowserSupportDirectory(NSString *bundleIdentifier) {
+    NSString *identifier = bundleIdentifier.lowercaseString ?: @"";
+    if ([identifier isEqualToString:@"com.google.chrome.beta"]) return @"Google/Chrome Beta";
+    if ([identifier isEqualToString:@"com.google.chrome.canary"]) return @"Google/Chrome Canary";
+    if ([identifier isEqualToString:@"com.brave.browser"]) return @"BraveSoftware/Brave-Browser";
+    if ([identifier isEqualToString:@"com.google.chrome"]) return @"Google/Chrome";
+    return nil;
+}
+
+static NSURL *C8KBrowserLocalStateURL(NSString *bundleIdentifier) {
+    NSString *override = NSProcessInfo.processInfo.environment[@"CAPTURE8K_BROWSER_LOCAL_STATE_PATH"];
+    if (override.length > 0) return [NSURL fileURLWithPath:override isDirectory:NO];
+    NSString *relativeDirectory = C8KBrowserSupportDirectory(bundleIdentifier);
+    if (!relativeDirectory) return nil;
+    NSURL *support = [NSFileManager.defaultManager.homeDirectoryForCurrentUser
+        URLByAppendingPathComponent:@"Library/Application Support" isDirectory:YES];
+    return [[support URLByAppendingPathComponent:relativeDirectory isDirectory:YES]
+        URLByAppendingPathComponent:@"Local State" isDirectory:NO];
+}
+
+BOOL C8KPersistentCaptureModeConfigured(NSString *bundleIdentifier) {
+    NSURL *url = C8KBrowserLocalStateURL(bundleIdentifier);
+    NSData *data = url ? [NSData dataWithContentsOfURL:url] : nil;
+    NSDictionary *root = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+    NSArray *experiments = [root[@"browser"][@"enabled_labs_experiments"] isKindOfClass:NSArray.class]
+        ? root[@"browser"][@"enabled_labs_experiments"] : @[];
+    for (id value in experiments) {
+        if ([value isKindOfClass:NSString.class] &&
+            [(NSString *)value hasPrefix:@"silent-debugger-extension-api@1"]) return YES;
+    }
+    return NO;
+}
+
+BOOL C8KInstallPersistentCaptureMode(NSString *bundleIdentifier, NSError **error) {
+    NSURL *url = C8KBrowserLocalStateURL(bundleIdentifier);
+    if (!url) {
+        if (error) *error = [NSError errorWithDomain:@"com.capture8k.app" code:40 userInfo:@{
+            NSLocalizedDescriptionKey: @"Ce navigateur ne permet pas d’activer le mode Capture8K persistant."
+        }];
+        return NO;
+    }
+    NSData *data = [NSData dataWithContentsOfURL:url options:0 error:error];
+    if (!data) return NO;
+    NSMutableDictionary *root = [[NSJSONSerialization JSONObjectWithData:data
+        options:NSJSONReadingMutableContainers error:error] mutableCopy];
+    if (![root isKindOfClass:NSMutableDictionary.class]) return NO;
+
+    NSMutableDictionary *browser = [root[@"browser"] isKindOfClass:NSDictionary.class]
+        ? [root[@"browser"] mutableCopy] : [NSMutableDictionary dictionary];
+    NSMutableArray *experiments = [browser[@"enabled_labs_experiments"] isKindOfClass:NSArray.class]
+        ? [browser[@"enabled_labs_experiments"] mutableCopy] : [NSMutableArray array];
+    NSIndexSet *obsoleteEntries = [experiments indexesOfObjectsPassingTest:
+        ^BOOL(id value, NSUInteger index, BOOL *stop) {
+            return [value isKindOfClass:NSString.class] &&
+                [(NSString *)value hasPrefix:@"silent-debugger-extension-api"];
+        }];
+    if (obsoleteEntries.count > 0) [experiments removeObjectsAtIndexes:obsoleteEntries];
+    [experiments addObject:@"silent-debugger-extension-api@1"];
+    browser[@"enabled_labs_experiments"] = experiments;
+    root[@"browser"] = browser;
+
+    NSData *encoded = [NSJSONSerialization dataWithJSONObject:root options:0 error:error];
+    return encoded && [encoded writeToURL:url options:NSDataWritingAtomic error:error];
+}
+
 static pid_t C8KParentProcessIdentifier(pid_t processIdentifier) {
     int query[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, processIdentifier };
     struct kinfo_proc information = { 0 };
@@ -72,6 +137,7 @@ static NSDictionary *C8KStatusForBrowser(NSRunningApplication *browser) {
         @"bundleIdentifier": browser.bundleIdentifier ?: @"com.google.Chrome",
         @"processIdentifier": @(browser.processIdentifier),
         @"applicationPath": browser.bundleURL.path ?: @"",
+        @"persistentCaptureMode": @(firefox || C8KPersistentCaptureModeConfigured(browser.bundleIdentifier)),
         @"nativeScaleCapture": @(firefox)
     };
 }

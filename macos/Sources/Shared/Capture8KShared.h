@@ -14,5 +14,7 @@ NSURL *C8KSettingsURL(void);
 NSString *C8KSanitizedFilename(NSString *filename);
 NSURL *C8KUniqueDestination(NSURL *directory, NSString *filename);
 NSDictionary *C8KBrowserStatus(void);
+BOOL C8KInstallPersistentCaptureMode(NSString *bundleIdentifier, NSError **error);
+BOOL C8KPersistentCaptureModeConfigured(NSString *bundleIdentifier);
 
 NS_ASSUME_NONNULL_END

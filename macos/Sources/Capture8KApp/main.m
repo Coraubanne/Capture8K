@@ -121,9 +121,11 @@
     [alert runModal];
 }
 
-- (void)launchBrowserAtURL:(NSURL *)applicationURL {
+- (void)launchBrowserAtURL:(NSURL *)applicationURL persistentMode:(BOOL)persistentMode {
     NSWorkspaceOpenConfiguration *configuration = [NSWorkspaceOpenConfiguration configuration];
-    configuration.arguments = @[ @"--silent-debugger-extension-api", @"--restore-last-session" ];
+    configuration.arguments = persistentMode
+        ? @[ @"--restore-last-session" ]
+        : @[ @"--silent-debugger-extension-api", @"--restore-last-session" ];
     configuration.activates = YES;
     [NSWorkspace.sharedWorkspace openApplicationAtURL:applicationURL configuration:configuration
         completionHandler:^(__unused NSRunningApplication *application, NSError *launchError) {
@@ -151,14 +153,15 @@
         return;
     }
 
+    NSString *bundleIdentifier = status[@"bundleIdentifier"] ?: @"com.google.Chrome";
     if ([status[@"running"] boolValue]) {
         NSAlert *confirmation = [NSAlert new];
         confirmation.messageText = alreadyReady
             ? @"Recharger la nouvelle version de Capture8K ?"
-            : @"Relancer Chrome sans décaler les pages ?";
+            : @"Activer Capture8K définitivement dans Chrome ?";
         confirmation.informativeText = alreadyReady
             ? @"Capture8K va fermer puis rouvrir Chrome avec la dernière session et charger le nouveau moteur qui conserve le zoom et le viewport de chaque site. Enregistre d’abord tout formulaire en cours."
-            : @"Capture8K va fermer puis rouvrir Chrome avec le mode qui supprime la barre responsable des déplacements sur les sites dynamiques. Chrome restaurera la dernière session. Enregistre d’abord tout formulaire en cours. Ce mode masque aussi la barre de débogage des autres extensions : conserve uniquement des extensions de confiance.";
+            : @"Capture8K va enregistrer son mode fidèle dans Chrome, puis le relancer une dernière fois. Ce réglage persiste après les redémarrages et les mises à jour. Chrome restaurera la dernière session. Enregistre d’abord tout formulaire en cours. Le mode masque aussi la barre de débogage des extensions : conserve uniquement des extensions de confiance.";
         [confirmation addButtonWithTitle:@"Relancer Chrome"];
         [confirmation addButtonWithTitle:@"Annuler"];
         [NSApp activateIgnoringOtherApps:YES];
@@ -189,7 +192,13 @@
         self.preparingBrowser = YES;
         [self refreshMenu];
     }
-    [self launchBrowserAtURL:applicationURL];
+    NSError *persistentError = nil;
+    BOOL persistentMode = C8KInstallPersistentCaptureMode(bundleIdentifier, &persistentError);
+    if (!persistentMode && persistentError) {
+        NSLog(@"Capture8K: mode Chrome persistant indisponible, utilisation du lancement de secours: %@",
+            persistentError.localizedDescription);
+    }
+    [self launchBrowserAtURL:applicationURL persistentMode:persistentMode];
 }
 
 - (void)updateResolution:(NSString *)resolution {
@@ -240,7 +249,7 @@
 
 - (void)showAbout:(id)sender {
     NSAlert *alert = [NSAlert new];
-    alert.messageText = @"Capture8K 2.6.5";
+    alert.messageText = @"Capture8K 2.7.0";
     alert.informativeText = @"Dans Chrome ou Firefox, ⌘⇧8 capture 100 % de la zone web visible en 4K/8K. Firefox utilise directement le rerendu natif haute densité de Gecko ; Chrome conserve son mode fidèle. L’app compare plusieurs témoins visuels avant d’enregistrer le PNG.";
     [alert addButtonWithTitle:@"OK"];
     [NSApp activateIgnoringOtherApps:YES];
