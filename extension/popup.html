@@ -7,13 +7,24 @@
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-icon" aria-hidden="true">
+          <img src="icons/capture8k-mark.svg" alt="">
+          <span id="format-mark">8K</span>
+        </div>
+        <div class="brand-copy">
+          <h1>Capture8K</h1>
+          <span>Capture haute définition</span>
+        </div>
+      </div>
+      <button id="open-app" class="folder-toggle" type="button" aria-label="Choisir le dossier d’export" title="Dossier d’export">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3.75 5.75A2.75 2.75 0 0 1 6.5 3h3.1c.73 0 1.43.29 1.95.8l1.2 1.2h4.75a2.75 2.75 0 0 1 2.75 2.75v8.5A2.75 2.75 0 0 1 17.5 19H6.5a2.75 2.75 0 0 1-2.75-2.75V5.75Zm2.75-.8a.8.8 0 0 0-.8.8v.75h12.6a.8.8 0 0 0-.8-.55h-5.56l-1.77-1.76a.8.8 0 0 0-.57-.24H6.5Z"/>
+        </svg>
+      </button>
+    </header>
     <main>
-      <header>
-        <div class="mark" aria-hidden="true"><span id="format-mark">8K</span></div>
-        <h1>Capture8K</h1>
-        <button id="open-app" type="button">Dossier…</button>
-      </header>
-
       <fieldset class="resolution-picker">
         <legend>Définition de la capture</legend>
         <div class="resolution-options">
@@ -46,6 +57,7 @@
         <span id="native-label">Vérification…</span>
       </section>
     </main>
+    <footer id="extension-version" class="extension-version"></footer>
     <script src="popup.js"></script>
   </body>
 </html>

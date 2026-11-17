@@ -1,18 +1,19 @@
-# Capture8K 2.7.3 — extension Chrome + app macOS
+# Capture8K 2.7.4 — extension Chrome + app macOS
 
 Capture8K conserve désormais **100 % de la page visible**, sans couper le haut,
 le bas ou les côtés. Le PNG préserve le ratio exact du viewport et son grand
 côté mesure **3 840 px en 4K** ou **7 680 px en 8K**, sans agrandir
-artificiellement une capture existante. La version 2.7.3 travaille directement sur le document déjà affiché,
+artificiellement une capture existante. La version 2.7.4 travaille directement sur le document déjà affiché,
 sans dupliquer l’onglet ni recharger l’URL. Son mode Chrome dédié supprime la
 barre technique qui réduisait brièvement le viewport des sites responsives.
 
 ## Utilisation
 
-1. Lancer `Capture8K.app`. Si Chrome n’est pas déjà dans son mode fidèle,
-   l’agent le relance automatiquement avec la dernière session.
-2. Les lancements suivants sont surveillés par l’agent local : aucune réparation
-   manuelle récurrente n’est nécessaire.
+1. Lancer `Capture8K.app`. À la première installation uniquement, choisir
+   **Préparer Chrome** puis accepter la relance ; l’app active un réglage
+   persistant qui reste valide après les redémarrages et mises à jour de Chrome.
+2. La dernière session est restaurée automatiquement. Les lancements suivants
+   de Chrome ne nécessitent plus aucune préparation.
 3. Ouvrir la page à capturer puis presser **⌘⇧8**, ou cliquer sur
    **Capturer la page visible** dans l’extension.
 4. Le viewport visible complet est capturé, vérifié et enregistré.
@@ -26,7 +27,7 @@ d’afficher ce dossier dans le Finder. Par défaut, les fichiers sont placés d
 
 La capture suit quatre étapes :
 
-1. L’app vérifie que le mode fidèle qui désactive la barre de débogage
+1. L’app vérifie que le mode persistant qui désactive la barre de débogage
    responsable du changement de hauteur est actif. Sinon, la capture est
    bloquée avant de toucher à la page.
 2. La page et tous ses cadres intégrés sont figés : animations CSS/Web
@@ -67,7 +68,7 @@ La phase de rendu dispose désormais de 26 secondes, ce qui laisse une enveloppe
 pratique inférieure à 30 secondes pour la capture complète.
 
 Les vidéos, canvas et cadres intégrés peuvent utiliser une surface de composition
-distincte de celle du document. La version 2.7.3 conserve alors leurs pixels
+distincte de celle du document. La version 2.7.4 conserve alors leurs pixels
 réellement visibles et certifie séparément le reste de la page rerastérisé en
 haute définition. Aucun upscale IA n’est utilisé. Les pages internes `chrome://`,
 le mode image dans l’image et certains contenus protégés peuvent rester
@@ -78,10 +79,10 @@ l’extension fige les animations, transitions, médias et le défilement sans
 désactiver le moteur de la page. Cela évite les écrans blancs et garantit que
 l’onglet revient toujours à son état normal après un échec intermédiaire.
 
-Le mode fidèle repose sur l’option Chrome `silent-debugger-extension-api`.
-L’agent local vérifie chaque nouveau processus Chrome et le relance avec cette
-option lorsqu’elle manque. Il évite ainsi la barre qui déforme les pages, y
-compris après un redémarrage ou une mise à jour. Cette option masque la barre pour toutes les
+Le mode fidèle repose sur l’option Chrome `silent-debugger-extension-api`,
+enregistrée dans les réglages expérimentaux persistants du navigateur. Elle
+évite la barre qui déforme les pages et survit aux lancements ordinaires ainsi
+qu’aux mises à jour de Chrome. Elle masque cette barre pour toutes les
 extensions disposant de l’autorisation `debugger` : il faut donc conserver
 uniquement des extensions de confiance.
 

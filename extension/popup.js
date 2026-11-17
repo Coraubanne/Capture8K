@@ -7,6 +7,7 @@ const formatMark = document.querySelector("#format-mark");
 const companion = document.querySelector(".companion");
 const nativeLabel = document.querySelector("#native-label");
 const openAppButton = document.querySelector("#open-app");
+const extensionVersion = document.querySelector("#extension-version");
 const resolutionInputs = [...document.querySelectorAll('input[name="resolution"]')];
 
 const FORMATS = {
@@ -24,6 +25,8 @@ let selectedFormatId = "8k";
 let currentState = "ready";
 let nativeConnected = false;
 let browserCaptureModeReady = false;
+
+extensionVersion.textContent = `Capture8K ${chrome.runtime.getManifest().version}`;
 
 function renderPrimaryAction() {
   const format = FORMATS[selectedFormatId] || FORMATS["8k"];
@@ -55,7 +58,6 @@ function renderNativeStatus(payload = {}) {
   } else {
     nativeLabel.textContent = "Prêt";
   }
-  openAppButton.textContent = "Dossier…";
   renderPrimaryAction();
   companion.title = payload.outputDirectory || "";
   captureButton.disabled = currentState === "working" || currentState === "selecting" || !nativeConnected;

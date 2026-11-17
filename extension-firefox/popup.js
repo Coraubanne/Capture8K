@@ -8,6 +8,7 @@ const formatMark = document.querySelector("#format-mark");
 const companion = document.querySelector(".companion");
 const nativeLabel = document.querySelector("#native-label");
 const folderButton = document.querySelector("#open-app");
+const extensionVersion = document.querySelector("#extension-version");
 const resolutionInputs = [...document.querySelectorAll('input[name="resolution"]')];
 
 const FORMATS = {
@@ -18,6 +19,8 @@ const FORMATS = {
 let selectedFormatId = "8k";
 let currentState = "ready";
 let nativeConnected = false;
+
+extensionVersion.textContent = `Capture8K ${api.runtime.getManifest().version}`;
 
 function renderPrimaryAction() {
   captureLabel.textContent = `Capturer en ${FORMATS[selectedFormatId].label}`;
@@ -36,7 +39,6 @@ function renderNativeStatus(payload = {}) {
   nativeConnected = payload.connected === true;
   companion.className = `companion ${nativeConnected ? "connected" : "error"}`;
   nativeLabel.textContent = nativeConnected ? "Prêt" : "App indisponible";
-  folderButton.textContent = "Dossier…";
   companion.title = payload.outputDirectory || payload.error || "";
   captureButton.disabled = currentState === "working" || !nativeConnected;
 }

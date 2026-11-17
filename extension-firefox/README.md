@@ -1,4 +1,4 @@
-# Capture8K pour Firefox 2.7.3
+# Capture8K pour Firefox 2.7.4
 
 Cette variante utilise directement le moteur Gecko de Firefox. L’option native
 `tabs.captureVisibleTab({ scale })` rerastérise la page visible au facteur requis

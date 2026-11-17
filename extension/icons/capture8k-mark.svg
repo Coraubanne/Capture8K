@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="surface" x1="20" y1="12" x2="104" y2="118" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff"/>
+      <stop offset="1" stop-color="#edf3fb"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="34" y1="30" x2="94" y2="98" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#42adff"/>
+      <stop offset="1" stop-color="#0068d9"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#1b345c" flood-opacity=".23"/>
+    </filter>
+    <filter id="glyphShadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#0068d9" flood-opacity=".28"/>
+    </filter>
+  </defs>
+  <rect x="9" y="7" width="110" height="112" rx="30" fill="url(#surface)" stroke="#fff" stroke-width="3" filter="url(#shadow)"/>
+  <g fill="none" stroke="url(#blue)" stroke-linecap="round" stroke-linejoin="round" stroke-width="9" filter="url(#glyphShadow)">
+    <path d="M48 37H36v12"/>
+    <path d="M80 37h12v12"/>
+    <path d="M48 91H36V79"/>
+    <path d="M80 91h12V79"/>
+  </g>
+</svg>
