@@ -78,11 +78,15 @@ static NSComparisonResult C8KCompareSemanticVersions(NSString *first, NSString *
     return NSOrderedSame;
 }
 
+static NSString * const C8KReleaseRepository = @"Coraubanne/Capture8K";
+
 static NSDictionary *C8KCheckUpdate(NSError **error) {
-    NSURL *url = [NSURL URLWithString:@"https://api.github.com/repos/Coraubanne/Capture8K-Releases/releases/latest"];
+    NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:
+        @"https://api.github.com/repos/%@/releases/latest", C8KReleaseRepository]];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:12.0];
     [request setValue:@"application/vnd.github+json" forHTTPHeaderField:@"Accept"];
-    [request setValue:@"Capture8K/2.8.0" forHTTPHeaderField:@"User-Agent"];
+    NSString *current = NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"] ?: @"0.0.0";
+    [request setValue:[@"Capture8K/" stringByAppendingString:current] forHTTPHeaderField:@"User-Agent"];
     dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
     __block NSData *responseData = nil;
     __block NSError *requestError = nil;
@@ -93,7 +97,6 @@ static NSDictionary *C8KCheckUpdate(NSError **error) {
         dispatch_semaphore_signal(semaphore);
     }] resume];
     dispatch_semaphore_wait(semaphore, dispatch_time(DISPATCH_TIME_NOW, 13 * NSEC_PER_SEC));
-    NSString *current = NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"] ?: @"2.8.0";
     if (!requestError && statusCode == 404) {
         if (error) *error = C8KError(76, @"Aucune version de Capture8K accessible sur GitHub pour le moment.");
         return nil;
@@ -127,7 +130,8 @@ static NSDictionary *C8KCheckUpdate(NSError **error) {
     return @{ @"type": @"update-status", @"ok": @YES, @"currentVersion": current,
         @"latestVersion": latest, @"updateAvailable": @(available),
         @"archiveURL": archiveURL, @"checksumURL": checksumURL,
-        @"releaseURL": release[@"html_url"] ?: @"https://github.com/Coraubanne/Capture8K-Releases/releases/latest" };
+        @"releaseURL": release[@"html_url"] ?: [NSString stringWithFormat:
+            @"https://github.com/%@/releases/latest", C8KReleaseRepository] };
 }
 
 static NSArray<NSString *> *C8KInstalledChromeExtensionPaths(void) {
@@ -161,7 +165,7 @@ static NSDictionary *C8KInstallUpdate(NSDictionary *message, NSError **error) {
     }
     NSString *filename = [NSString stringWithFormat:@"Capture8K-complet-v%@.zip", version];
     NSString *archiveURL = [NSString stringWithFormat:
-        @"https://github.com/Coraubanne/Capture8K-Releases/releases/download/v%@/%@", version, filename];
+        @"https://github.com/%@/releases/download/v%@/%@", C8KReleaseRepository, version, filename];
     NSString *checksumURL = [archiveURL stringByAppendingString:@".sha256"];
     if (![release[@"archiveURL"] isEqualToString:archiveURL] || ![release[@"checksumURL"] isEqualToString:checksumURL]) {
         if (error) *error = C8KError(73, @"Les téléchargements de cette release ne sont pas valides.");

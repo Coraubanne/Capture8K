@@ -1,0 +1,27 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Build macOS application
+        run: ./macos/build.sh
+      - name: Test Chrome and the native capture host
+        run: node --test tests/test-background.mjs macos/Tests/test-native-host.mjs

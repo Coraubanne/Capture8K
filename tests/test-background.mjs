@@ -348,4 +348,4 @@ assert.equal(events.includes("debugger-attached"), false);
 assert(nativeMessages.some(message => message.type === "prepare-browser"));
 browserCaptureModeReady = true;
 
-console.log("Capture8K 2.8.0 : zoom, plein cadre, dossier d’export et pont natif validés.");
+console.log("Capture8K : zoom, plein cadre, dossier d’export et pont natif validés.");

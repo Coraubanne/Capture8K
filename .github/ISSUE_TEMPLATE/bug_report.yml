@@ -1,0 +1,17 @@
+name: Signaler un bug
+description: Signaler un problème reproductible dans Capture8K
+title: "[Bug] "
+body:
+  - type: input
+    id: versions
+    attributes:
+      label: Versions de Capture8K, macOS et du navigateur
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Étapes pour reproduire et résultat observé
+      description: Si nécessaire, ajoutez une URL publique. Masquez les données personnelles dans les captures et journaux.
+    validations:
+      required: true

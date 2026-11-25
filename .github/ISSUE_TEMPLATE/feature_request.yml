@@ -1,0 +1,9 @@
+name: Suggérer une amélioration
+description: Proposer une amélioration de Capture8K
+body:
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Que voudrais-tu pouvoir faire avec Capture8K ?
+    validations:
+      required: true

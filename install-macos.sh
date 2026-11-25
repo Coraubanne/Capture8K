@@ -8,19 +8,44 @@ if [[ -n "$extension_id" && ! "$extension_id" =~ '^[a-p]{32}$' ]]; then
 fi
 
 repo_dir=${0:A:h}
-app_source="$repo_dir/macos/build/Capture8K.app"
+if [[ -d "$repo_dir/Capture8K.app" ]]; then
+  app_source="$repo_dir/Capture8K.app"
+  chrome_source="$repo_dir/Capture8K Chrome"
+  firefox_source="$repo_dir/Capture8K Firefox"
+  guard_source="$repo_dir/com.capture8k.guard.plist"
+else
+  "$repo_dir/macos/build.sh"
+  app_source="$repo_dir/macos/build/Capture8K.app"
+  chrome_source="$repo_dir/extension"
+  firefox_source="$repo_dir/extension-firefox"
+  guard_source="$repo_dir/macos/Resources/com.capture8k.guard.plist"
+fi
+[[ -f "$chrome_source/manifest.json" && -f "$firefox_source/manifest.json" && -f "$guard_source" ]]
+/usr/bin/codesign --verify --deep --strict "$app_source"
 user_home=${HOME:?}
 app_destination="$user_home/Applications/Capture8K.app"
 extension_root="$user_home/Documents/Capture8K"
 chrome_destination="$extension_root/Chrome"
 firefox_destination="$extension_root/Firefox"
 host_path="$app_destination/Contents/MacOS/Capture8KNativeHost"
-guard_source="$repo_dir/macos/Resources/com.capture8k.guard.plist"
 guard_destination="$user_home/Library/LaunchAgents/com.capture8k.guard.plist"
 
-"$repo_dir/macos/build.sh"
 mkdir -p "$user_home/Applications"
-ditto --rsrc --extattr --acl "$app_source" "$app_destination"
+staging_dir="$(mktemp -d "$user_home/Applications/.capture8k-install.XXXXXX")"
+cleanup_install() {
+  if [[ -d "$staging_dir/previous.app" && ! -e "$app_destination" ]]; then
+    /bin/mv "$staging_dir/previous.app" "$app_destination" || return
+  fi
+  /bin/rm -rf "$staging_dir"
+}
+trap cleanup_install EXIT
+ditto --rsrc --extattr --acl "$app_source" "$staging_dir/Capture8K.app"
+/usr/bin/codesign --verify --deep --strict "$staging_dir/Capture8K.app"
+[[ ! -L "$app_destination" ]]
+if [[ -d "$app_destination" ]]; then
+  /bin/mv "$app_destination" "$staging_dir/previous.app"
+fi
+/bin/mv "$staging_dir/Capture8K.app" "$app_destination"
 mkdir -p "$extension_root"
 typeset -aU chrome_destinations
 chrome_destinations=()
@@ -34,9 +59,9 @@ if [[ -n "$extension_id" ]]; then
 fi
 if (( ! ${#chrome_destinations} )); then chrome_destinations=("$chrome_destination"); fi
 for destination in "${chrome_destinations[@]}"; do
-  ditto "$repo_dir/extension" "$destination"
+  ditto "$chrome_source" "$destination"
 done
-ditto "$repo_dir/extension-firefox" "$firefox_destination"
+ditto "$firefox_source" "$firefox_destination"
 
 mkdir -p "$user_home/Library/LaunchAgents"
 sed "s|__CAPTURE8K_EXECUTABLE__|$app_destination/Contents/MacOS/Capture8K|g" \
