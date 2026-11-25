@@ -90,6 +90,13 @@ try {
   const settings = await waitFor(message => message.type === "settings");
   assert.equal(settings.resolution, "8k");
   assert.equal(settings.outputMode, "custom");
+  assert.equal(settings.completionSound, true);
+  send({ type: "set-completion-sound", enabled: false });
+  const soundSetting = await waitFor(message => message.type === "completion-sound-status");
+  assert.equal(soundSetting.ok, true);
+  assert.equal(soundSetting.enabled, false);
+  const updatedSettings = JSON.parse(await readFile(settingsPath, "utf8"));
+  assert.equal(updatedSettings.completionSound, false);
   assert.equal(settings.outputDirectory, outputDirectory);
   assert.equal(typeof settings.browserCaptureModeReady, "boolean");
   assert.equal(typeof settings.browserName, "string");

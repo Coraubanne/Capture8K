@@ -179,10 +179,59 @@ main { padding: 0 9px 9px; }
 
 .settings-panel,
 .resolution-picker,
+.sound-option,
 .status {
   backdrop-filter: blur(22px) saturate(145%);
   -webkit-backdrop-filter: blur(22px) saturate(145%);
 }
+
+.sound-option {
+  align-items: center;
+  background: var(--surface);
+  border-radius: 13px;
+  box-shadow: var(--shadow-control);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 9px 11px;
+}
+
+.sound-copy { display: grid; gap: 2px; }
+.sound-copy strong { font-size: 11px; font-weight: 650; }
+.sound-copy small { color: var(--text-secondary); font-size: 9px; }
+
+.sound-option input {
+  appearance: none;
+  background: rgba(120, 120, 128, .28);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  flex: none;
+  height: 22px;
+  margin: 0;
+  position: relative;
+  transition: background .18s ease;
+  width: 38px;
+}
+
+.sound-option input::after {
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, .22);
+  content: "";
+  height: 18px;
+  left: 2px;
+  position: absolute;
+  top: 2px;
+  transition: transform .18s ease;
+  width: 18px;
+}
+
+.sound-option input:checked { background: linear-gradient(135deg, #2d9bff, var(--accent-deep)); }
+.sound-option input:checked::after { transform: translateX(16px); }
+.sound-option input:disabled { cursor: default; opacity: .52; }
+.sound-option input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .resolution-picker {
   background: var(--surface);

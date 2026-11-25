@@ -80,6 +80,14 @@
           </select>
           <small id="destination-detail" class="setting-detail"></small>
         </label>
+        <label class="sound-option">
+          <span class="sound-copy">
+            <strong id="sound-label" data-copy="completionSound">Son de fin</strong>
+            <small id="sound-description" data-copy="whenReady">Quand la capture est enregistrée</small>
+          </span>
+          <input id="completion-sound" type="checkbox" role="switch" aria-labelledby="sound-label" aria-describedby="sound-description" checked disabled>
+        </label>
+        <small id="sound-status" class="setting-detail" role="status"></small>
         <div class="update-option">
           <button id="check-update" type="button">Chercher une mise à jour</button>
           <small id="update-status" class="setting-detail" role="status"></small>

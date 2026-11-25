@@ -1,5 +1,9 @@
 # Historique des versions
 
+## 2.8.3 · 25 novembre 2026
+
+- Option Son de fin dans les réglages Chrome et Firefox. Capture8K joue le son « Pop » après l’enregistrement réussi du PNG.
+
 ## 2.8.2 · 25 novembre 2026
 
 - Alignement visuel du logo, du bouton Réglages et des champs sur ClipFlow.

@@ -2612,11 +2612,26 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         connected: true,
         outputDirectory: settings.outputDirectory,
         outputMode: settings.outputMode || "downloads",
+        completionSound: settings.completionSound,
         formatId: resolveFormat(settings.resolution).id,
         browserCaptureModeReady: settings.browserCaptureModeReady === true,
         browserName: settings.browserName || "Google Chrome"
       }))
       .catch((error) => sendResponse({ connected: false, error: friendlyError(error) }));
+    return true;
+  }
+  if (message?.type === "capture8k-set-completion-sound" && typeof message.enabled === "boolean") {
+    ensureNativeHost()
+      .then(() => {
+        const reply = waitForNativeMessage(
+          (event) => event?.type === "completion-sound-status", 2500,
+          "Capture8K n’a pas confirmé ce réglage."
+        );
+        nativePort.postMessage({ type: "set-completion-sound", enabled: message.enabled });
+        return reply;
+      })
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, error: friendlyError(error) }));
     return true;
   }
   if (message?.type === "capture8k-open-app") {

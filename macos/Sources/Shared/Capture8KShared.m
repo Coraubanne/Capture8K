@@ -199,7 +199,7 @@ NSDictionary *C8KDefaultSettings(void) {
     NSString *downloads = [[NSFileManager.defaultManager.homeDirectoryForCurrentUser
         URLByAppendingPathComponent:@"Downloads/Capture8K" isDirectory:YES] path];
     return @{ @"resolution": @"8k", @"outputMode": @"downloads",
-        @"outputDirectory": downloads, @"copyToClipboard": @YES };
+        @"outputDirectory": downloads, @"copyToClipboard": @YES, @"completionSound": @YES };
 }
 
 NSDictionary *C8KLoadSettings(void) {
@@ -221,6 +221,8 @@ NSDictionary *C8KLoadSettings(void) {
     }
     NSNumber *clipboard = decoded[@"copyToClipboard"];
     if ([clipboard isKindOfClass:NSNumber.class]) settings[@"copyToClipboard"] = clipboard;
+    NSNumber *sound = decoded[@"completionSound"];
+    if ([sound isKindOfClass:NSNumber.class]) settings[@"completionSound"] = @([sound boolValue]);
     return settings;
 }
 

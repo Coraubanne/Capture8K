@@ -560,6 +560,16 @@ api.runtime.onMessage.addListener((message) => {
       .then((settings) => ({ connected: true, browserCaptureModeReady: true, ...settings }))
       .catch(() => ({ connected: false, browserCaptureModeReady: false, error: nativeConnectionError }));
   }
+  if (message?.type === "capture8k-set-completion-sound" && typeof message.enabled === "boolean") {
+    return ensureNativeHost().then(() => {
+      const reply = waitForNativeMessage(
+        (event) => event?.type === "completion-sound-status", 2500,
+        "Capture8K n’a pas confirmé ce réglage."
+      );
+      nativePort.postMessage({ type: "set-completion-sound", enabled: message.enabled });
+      return reply;
+    }).catch((error) => ({ ok: false, error: error?.message || String(error) }));
+  }
   if (message?.type === "capture8k-set-format") {
     const format = resolveFormat(message.formatId);
     return api.storage.local.set({ captureResolution: format.id }).then(() => {

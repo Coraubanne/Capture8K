@@ -53,6 +53,25 @@ static NSError *C8KError(NSInteger code, NSString *message) {
         userInfo:@{ NSLocalizedDescriptionKey: message }];
 }
 
+static void C8KPlayCompletionSound(void) {
+    NSArray<NSString *> *sounds = @[
+        @"/System/Library/Sounds/Pop.aiff",
+        @"/System/Library/Sounds/Glass.aiff"
+    ];
+    NSFileHandle *nullDevice = NSFileHandle.fileHandleWithNullDevice;
+    for (NSString *sound in sounds) {
+        if (![NSFileManager.defaultManager isReadableFileAtPath:sound]) continue;
+        NSTask *player = [NSTask new];
+        player.executableURL = [NSURL fileURLWithPath:@"/usr/bin/afplay"];
+        player.arguments = @[ sound ];
+        player.standardInput = nullDevice;
+        player.standardOutput = nullDevice;
+        player.standardError = nullDevice;
+        [player launchAndReturnError:nil];
+        return;
+    }
+}
+
 static NSArray<NSNumber *> *C8KSemanticVersion(NSString *value) {
     if (![value isKindOfClass:NSString.class]) return nil;
     NSString *clean = [value hasPrefix:@"v"] ? [value substringFromIndex:1] : value;
@@ -632,6 +651,7 @@ static BOOL C8KWriteComposite(CGImageRef reference, CGImageRef render,
             [NSPasteboard.generalPasteboard writeObjects:@[ destination ]];
         });
     }
+    if ([settings[@"completionSound"] boolValue]) C8KPlayCompletionSound();
     return @{
         @"type": @"save-complete", @"jobId": self.identifier, @"ok": @YES,
         @"path": destination.path, @"width": @(renderWidth), @"height": @(renderHeight),
@@ -675,6 +695,7 @@ static BOOL C8KWriteComposite(CGImageRef reference, CGImageRef render,
         @"outputMode": settings[@"outputMode"],
         @"outputDirectory": settings[@"outputDirectory"],
         @"copyToClipboard": settings[@"copyToClipboard"],
+        @"completionSound": settings[@"completionSound"],
         @"browserRunning": browser[@"running"],
         @"browserCaptureModeReady": browser[@"captureModeReady"],
         @"browserName": browser[@"browserName"]
@@ -729,6 +750,20 @@ static BOOL C8KWriteComposite(CGImageRef reference, CGImageRef render,
     }
     if ([type isEqualToString:@"ping"] || [type isEqualToString:@"get-settings"]) {
         C8KWriteMessage([self settingsMessage:@"settings"]);
+        return YES;
+    }
+    if ([type isEqualToString:@"set-completion-sound"]) {
+        id enabled = message[@"enabled"];
+        NSError *settingsError = nil;
+        BOOL saved = NO;
+        if ([enabled isKindOfClass:NSNumber.class]) {
+            NSMutableDictionary *settings = [C8KLoadSettings() mutableCopy];
+            settings[@"completionSound"] = @([enabled boolValue]);
+            saved = C8KSaveSettings(settings, &settingsError);
+        }
+        C8KWriteMessage(@{ @"type": @"completion-sound-status", @"ok": @(saved),
+            @"enabled": C8KLoadSettings()[@"completionSound"],
+            @"error": settingsError.localizedDescription ?: @"" });
         return YES;
     }
     if ([type isEqualToString:@"set-settings"]) {

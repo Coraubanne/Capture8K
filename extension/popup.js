@@ -16,6 +16,8 @@ const settingsView = document.querySelector("#settings-view");
 const languageSelect = document.querySelector("#language");
 const destination = document.querySelector("#destination");
 const destinationDetail = document.querySelector("#destination-detail");
+const completionSound = document.querySelector("#completion-sound");
+const soundStatus = document.querySelector("#sound-status");
 const checkUpdate = document.querySelector("#check-update");
 const updateStatus = document.querySelector("#update-status");
 const extensionVersion = document.querySelector("#extension-version");
@@ -29,6 +31,8 @@ let nativeStatus = null;
 let availableUpdate = null;
 let updateFeedback = {};
 let destinationError = "";
+let soundSaving = false;
+let soundError = false;
 
 function copy(key, values = {}) {
   return popupCopy[language][key].replace(/\{(\w+)\}/g, (_, name) => String(values[name] ?? ""));
@@ -46,6 +50,7 @@ function setLanguage(preference) {
   setSettingsOpen(!settingsView.hidden);
   renderCapture();
   renderDestination();
+  renderCompletionSound();
   renderUpdate();
 }
 
@@ -122,6 +127,13 @@ function setNativeStatus(payload) {
   nativeStatus = payload;
   renderCapture();
   renderDestination();
+  renderCompletionSound();
+}
+
+function renderCompletionSound() {
+  completionSound.disabled = soundSaving || typeof nativeStatus?.completionSound !== "boolean";
+  if (!soundSaving) completionSound.checked = nativeStatus?.completionSound !== false;
+  soundStatus.textContent = soundError ? copy("soundError") : "";
 }
 
 function setSettingsOpen(open) {
@@ -178,6 +190,26 @@ destination.addEventListener("change", async () => {
     renderDestination();
   } finally {
     destination.disabled = false;
+  }
+});
+
+completionSound.addEventListener("change", async () => {
+  const enabled = completionSound.checked;
+  soundSaving = true;
+  soundError = false;
+  renderCompletionSound();
+  try {
+    const result = await api.runtime.sendMessage({ type: "capture8k-set-completion-sound", enabled });
+    if (!result?.ok || result.enabled !== enabled) {
+      soundError = true;
+    } else {
+      nativeStatus = { ...nativeStatus, completionSound: result.enabled };
+    }
+  } catch {
+    soundError = true;
+  } finally {
+    soundSaving = false;
+    renderCompletionSound();
   }
 });
 
