@@ -308,7 +308,8 @@ static int C8KPrepareBrowserDirectly(void) {
 
 - (void)showAbout:(id)sender {
     NSAlert *alert = [NSAlert new];
-    alert.messageText = @"Capture8K 2.7.3";
+    alert.messageText = [NSString stringWithFormat:@"Capture8K %@",
+        NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"] ?: @""];
     alert.informativeText = @"Dans Chrome ou Firefox, ⌘⇧8 capture 100 % de la zone web visible en 4K/8K. Firefox utilise directement le rerendu natif haute densité de Gecko ; Chrome conserve son mode fidèle. L’app compare plusieurs témoins visuels avant d’enregistrer le PNG.";
     [alert addButtonWithTitle:@"OK"];
     [NSApp activateIgnoringOtherApps:YES];

@@ -9,7 +9,7 @@ const appRoot = fileURLToPath(new URL("../build/Capture8K.app", import.meta.url)
 const hostPath = join(appRoot, "Contents/MacOS/Capture8KNativeHost");
 const imagePath = process.argv[2]
   ? resolve(process.argv[2])
-  : fileURLToPath(new URL("../../test-output/live-session-v060.png", import.meta.url));
+  : fileURLToPath(new URL("../../tests/fixtures/native-8k.png", import.meta.url));
 const image = await readFile(imagePath);
 const baselinePathArgument = process.argv.find(argument => argument.startsWith("--baseline="));
 const baselineImage = baselinePathArgument ? await readFile(resolve(baselinePathArgument.slice(11))) : image;

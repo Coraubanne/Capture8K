@@ -22,8 +22,20 @@ guard_destination="$user_home/Library/LaunchAgents/com.capture8k.guard.plist"
 mkdir -p "$user_home/Applications"
 ditto --rsrc --extattr --acl "$app_source" "$app_destination"
 mkdir -p "$extension_root"
-rm -rf "$chrome_destination" "$firefox_destination"
-ditto "$repo_dir/extension" "$chrome_destination"
+typeset -aU chrome_destinations
+chrome_destinations=()
+if [[ -n "$extension_id" ]]; then
+  for preferences in "$user_home/Library/Application Support/Google/Chrome"/*/'Secure Preferences'(N.); do
+    registered="$(plutil -extract "extensions.settings.$extension_id.path" raw -o - "$preferences" 2>/dev/null)" || continue
+    [[ "$registered" == "$user_home/"* && -d "$registered" && ! -L "$registered" ]] || continue
+    name="$(plutil -extract name raw -o - "$registered/manifest.json" 2>/dev/null)" || continue
+    if [[ "$name" == Capture8K ]]; then chrome_destinations+=("$registered"); fi
+  done
+fi
+if (( ! ${#chrome_destinations} )); then chrome_destinations=("$chrome_destination"); fi
+for destination in "${chrome_destinations[@]}"; do
+  ditto "$repo_dir/extension" "$destination"
+done
 ditto "$repo_dir/extension-firefox" "$firefox_destination"
 
 mkdir -p "$user_home/Library/LaunchAgents"
@@ -55,4 +67,5 @@ mkdir -p "$firefox_dir"
 print -r -- "$firefox_manifest" > "$firefox_dir/com.capture8k.native.json"
 
 echo "Capture8K installé dans $app_destination"
-echo "Extensions canoniques : $chrome_destination et $firefox_destination"
+print -r -- "Chrome : ${(j:, :)chrome_destinations}"
+print -r -- "Firefox : $firefox_destination"

@@ -5,23 +5,36 @@ version=${1:?version manquante}
 archive_url=${2:?archive manquante}
 checksum_url=${3:?checksum manquant}
 app_target=${4:?application manquante}
-resource_dir=${0:A:h}
+install_home=${5:-"${HOME}"}
 workspace="$(mktemp -d /tmp/capture8k-update.XXXXXX)"
-app_backup="${workspace}/previous-Contents"
-restore_required=0
+typeset -a staged_directories installed_targets
+staged_directories=()
+installed_targets=()
+committed=0
 
 cleanup() {
-  if (( restore_required )) && [[ -d "${app_backup}" && ! -e "${app_target}/Contents" ]]; then
-    /bin/mv "${app_backup}" "${app_target}/Contents" || true
-  fi
+  local index stage target
+  for (( index = ${#staged_directories}; index > 0; index-- )); do
+    stage=${staged_directories[index]}
+    target=${installed_targets[index]}
+    if (( ! committed )); then
+      if [[ ! -e "${stage}/new" && -d "${target}" ]]; then
+        /bin/mv "${target}" "${stage}/failed" || continue
+      fi
+      if [[ -d "${stage}/previous" ]]; then
+        /bin/mv "${stage}/previous" "${target}" || continue
+      fi
+    fi
+    /bin/rm -rf "${stage}"
+  done
   /bin/rm -rf "${workspace}"
 }
 trap cleanup EXIT
 
 archive="${workspace}/Capture8K-complet-v${version}.zip"
 checksum="${archive}.sha256"
-/usr/bin/curl -fL --retry 2 --connect-timeout 10 --max-time 180 -o "${archive}" "${archive_url}"
-/usr/bin/curl -fL --retry 2 --connect-timeout 10 --max-time 30 -o "${checksum}" "${checksum_url}"
+/usr/bin/curl -q -fsSL --proto '=https,file' --proto-redir '=https' --connect-timeout 10 --max-time 180 --max-filesize 67108864 -o "${archive}" "${archive_url}"
+/usr/bin/curl -q -fsSL --proto '=https,file' --proto-redir '=https' --connect-timeout 10 --max-time 30 --max-filesize 4096 -o "${checksum}" "${checksum_url}"
 expected="$(/usr/bin/awk 'NR==1 {print tolower($1)}' "${checksum}")"
 actual="$(/usr/bin/shasum -a 256 "${archive}" | /usr/bin/awk '{print tolower($1)}')"
 [[ "${expected}" == "${actual}" && "${expected}" =~ '^[0-9a-f]{64}$' ]] || { print -u2 "Checksum invalide"; exit 21; }
@@ -41,48 +54,77 @@ bundle_id="$(/usr/bin/plutil -extract CFBundleIdentifier raw -o - "${source_app}
 bundle_version="$(/usr/bin/plutil -extract CFBundleShortVersionString raw -o - "${source_app}/Contents/Info.plist")"
 [[ "${bundle_id}" == "com.capture8k.app" && "${bundle_version}" == "${version}" ]] || { print -u2 "Identité invalide"; exit 24; }
 /usr/bin/codesign --verify --deep --strict "${source_app}"
-for manifest in "${source_chrome}/manifest.json" "${source_firefox}/manifest.json"; do
-  /usr/bin/grep -q '"name"[[:space:]]*:[[:space:]]*"Capture8K' "${manifest}" || { print -u2 "Extension invalide"; exit 25; }
-  /usr/bin/grep -q '"version"[[:space:]]*:[[:space:]]*"'"${version}"'"' "${manifest}" || { print -u2 "Version extension invalide"; exit 26; }
+read_manifest() {
+  /usr/bin/plutil -extract "$2" raw -o - "$1/manifest.json" 2>/dev/null
+}
+[[ "$(read_manifest "${source_chrome}" name)" == Capture8K &&
+   "$(read_manifest "${source_firefox}" browser_specific_settings.gecko.id)" == capture8k@coraubanne ]] ||
+  { print -u2 "Extension invalide"; exit 25; }
+for extension in "${source_chrome}" "${source_firefox}"; do
+  [[ "$(read_manifest "${extension}" version)" == "${version}" ]] || { print -u2 "Version extension invalide"; exit 26; }
 done
-/usr/bin/grep -q '"id"[[:space:]]*:[[:space:]]*"fr.clipflow.premiere.bridge"' "${source_bridge}/manifest.json" || { print -u2 "Creator Bridge invalide"; exit 27; }
+bridge_id=fr.clipflow.premiere.bridge
+bridge_version="$(read_manifest "${source_bridge}" version)"
+[[ "$(read_manifest "${source_bridge}" id)" == "$bridge_id" &&
+   "$bridge_version" =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]] || { print -u2 "Creator Bridge invalide"; exit 27; }
 
 replace_directory() {
   local source=$1
   local target=$2
-  local staged="${target:h}/.${target:t}.capture8k-new"
+  local stage
+  [[ ! -L "${target}" ]] || return 1
   /bin/mkdir -p "${target:h}"
-  /bin/rm -rf "${staged}"
-  /usr/bin/ditto "${source}" "${staged}"
-  /bin/rm -rf "${target}"
-  /bin/mv "${staged}" "${target}"
+  stage="$(mktemp -d "${3:-${target:h}}/.capture8k-update.XXXXXX")"
+  staged_directories+=("${stage}")
+  installed_targets+=("${target}")
+  /bin/mkdir "${stage}/new"
+  /usr/bin/ditto "${source}" "${stage}/new"
+  if [[ -d "${target}" ]]; then
+    /bin/mv "${target}" "${stage}/previous"
+  fi
+  /bin/mv "${stage}/new" "${target}"
 }
 
-canonical_root="${HOME}/Documents/Capture8K"
-replace_directory "${source_chrome}" "${canonical_root}/Chrome"
-replace_directory "${source_firefox}" "${canonical_root}/Firefox"
+user_documents="${install_home}/Documents/Capture8K"
+typeset -aU chrome_targets
+chrome_targets=()
 while IFS= read -r target; do
-  [[ -n "${target}" && -f "${target}/manifest.json" ]] || continue
-  /usr/bin/grep -q '"name"[[:space:]]*:[[:space:]]*"Capture8K' "${target}/manifest.json" || continue
-  replace_directory "${source_chrome}" "${target}"
+  [[ -n "${target}" && -d "${target}" ]] || continue
+  if [[ "$(read_manifest "${target}" name)" == Capture8K ]]; then
+    chrome_targets+=("${target}")
+  fi
 done <<< "${CAPTURE8K_CHROME_TARGETS:-}"
-
-bridge_version="$(/usr/bin/sed -n 's/.*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "${source_bridge}/manifest.json" | /usr/bin/head -n 1)"
-bridge_root="${HOME}/Library/Application Support/Adobe/UXP/Plugins/External"
-bridge_target="${bridge_root}/fr.clipflow.premiere.bridge_${bridge_version}"
-replace_directory "${source_bridge}" "${bridge_target}"
-for old_bridge in "${bridge_root}"/fr.clipflow.premiere.bridge_*; do
-  [[ -d "${old_bridge}" && "${old_bridge}" != "${bridge_target}" ]] || continue
-  /usr/bin/grep -q '"id"[[:space:]]*:[[:space:]]*"fr.clipflow.premiere.bridge"' "${old_bridge}/manifest.json" 2>/dev/null && /bin/rm -rf "${old_bridge}"
+if (( ! ${#chrome_targets} )); then chrome_targets=("${user_documents}/Chrome"); fi
+for target in "${chrome_targets[@]}"; do
+  replace_directory "${source_chrome}" "${target}"
 done
+replace_directory "${source_firefox}" "${user_documents}/Firefox"
 
-new_contents="${app_target}/.Contents.capture8k-new"
-/bin/rm -rf "${new_contents}"
-/usr/bin/ditto "${source_app}/Contents" "${new_contents}"
-/bin/mv "${app_target}/Contents" "${app_backup}"
-restore_required=1
-/bin/mv "${new_contents}" "${app_target}/Contents"
+bridge_root="${install_home}/Library/Application Support/Adobe/UXP/Plugins/External"
+bridge_target="${bridge_root}/${bridge_id}_${bridge_version}"
+autoload -Uz is-at-least
+typeset -a obsolete_bridges
+obsolete_bridges=()
+install_bridge=1
+for copy in "${bridge_root}"/${bridge_id}_*(N/); do
+  [[ "$(read_manifest "${copy}" id)" == "${bridge_id}" ]] || continue
+  found_version="$(read_manifest "${copy}" version)"
+  [[ "${found_version}" =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]] || continue
+  if is-at-least "${bridge_version}" "${found_version}"; then
+    install_bridge=0
+  else
+    obsolete_bridges+=("${copy}")
+  fi
+done
+if (( install_bridge )); then
+  replace_directory "${source_bridge}" "${bridge_target}"
+fi
+
+replace_directory "${source_app}/Contents" "${app_target}/Contents" "${app_target:h}"
 /usr/bin/codesign --verify --deep --strict "${app_target}"
-restore_required=0
+committed=1
+for copy in "${obsolete_bridges[@]}"; do
+  /bin/rm -rf "${copy}"
+done
 
 print '{"ok":true,"installed":true}'

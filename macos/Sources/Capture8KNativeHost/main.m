@@ -54,13 +54,14 @@ static NSError *C8KError(NSInteger code, NSString *message) {
 }
 
 static NSArray<NSNumber *> *C8KSemanticVersion(NSString *value) {
+    if (![value isKindOfClass:NSString.class]) return nil;
     NSString *clean = [value hasPrefix:@"v"] ? [value substringFromIndex:1] : value;
     NSArray<NSString *> *raw = [clean componentsSeparatedByString:@"."];
     if (raw.count != 3) return nil;
     NSMutableArray<NSNumber *> *result = [NSMutableArray array];
-    NSCharacterSet *invalid = NSCharacterSet.decimalDigitCharacterSet.invertedSet;
+    NSCharacterSet *invalid = [[NSCharacterSet characterSetWithCharactersInString:@"0123456789"] invertedSet];
     for (NSString *part in raw) {
-        if (part.length == 0 || [part rangeOfCharacterFromSet:invalid].location != NSNotFound) return nil;
+        if (part.length == 0 || part.length > 8 || [part rangeOfCharacterFromSet:invalid].location != NSNotFound) return nil;
         [result addObject:@(part.integerValue)];
     }
     return result;
@@ -153,10 +154,18 @@ static NSArray<NSString *> *C8KInstalledChromeExtensionPaths(void) {
 
 static NSDictionary *C8KInstallUpdate(NSDictionary *message, NSError **error) {
     NSString *version = message[@"version"];
-    NSString *archiveURL = message[@"archiveURL"];
-    NSString *checksumURL = message[@"checksumURL"];
-    if (!C8KSemanticVersion(version) || ![archiveURL hasPrefix:@"https://"] || ![checksumURL hasPrefix:@"https://"]) {
-        if (error) *error = C8KError(73, @"Paramètres de mise à jour invalides.");
+    NSDictionary *release = C8KCheckUpdate(error);
+    if (!release) return nil;
+    if (![release[@"updateAvailable"] boolValue] || ![release[@"latestVersion"] isEqual:version]) {
+        if (error) *error = C8KError(73, @"La version disponible a changé. Relancez la recherche de mise à jour.");
+        return nil;
+    }
+    NSString *filename = [NSString stringWithFormat:@"Capture8K-complet-v%@.zip", version];
+    NSString *archiveURL = [NSString stringWithFormat:
+        @"https://github.com/Coraubanne/Capture8K/releases/download/v%@/%@", version, filename];
+    NSString *checksumURL = [archiveURL stringByAppendingString:@".sha256"];
+    if (![release[@"archiveURL"] isEqualToString:archiveURL] || ![release[@"checksumURL"] isEqualToString:checksumURL]) {
+        if (error) *error = C8KError(73, @"Les téléchargements de cette release ne sont pas valides.");
         return nil;
     }
     NSURL *executable = [NSURL fileURLWithPath:NSProcessInfo.processInfo.arguments.firstObject].standardizedURL;
@@ -172,13 +181,13 @@ static NSDictionary *C8KInstallUpdate(NSDictionary *message, NSError **error) {
     NSMutableDictionary *environment = [NSProcessInfo.processInfo.environment mutableCopy];
     environment[@"CAPTURE8K_CHROME_TARGETS"] = [C8KInstalledChromeExtensionPaths() componentsJoinedByString:@"\n"];
     task.environment = environment;
-    NSPipe *output = [NSPipe pipe];
     NSPipe *failure = [NSPipe pipe];
-    task.standardOutput = output;
+    task.standardOutput = NSFileHandle.fileHandleWithNullDevice;
     task.standardError = failure;
     if (![task launchAndReturnError:error]) return nil;
-    [task waitUntilExit];
+    [failure.fileHandleForWriting closeFile];
     NSData *failureData = [failure.fileHandleForReading readDataToEndOfFile];
+    [task waitUntilExit];
     if (task.terminationStatus != 0) {
         NSString *detail = [[NSString alloc] initWithData:failureData encoding:NSUTF8StringEncoding];
         if (error) *error = C8KError(75, detail.length > 0 ? detail : @"L’installation automatique a échoué.");
