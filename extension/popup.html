@@ -9,22 +9,21 @@
   <body>
     <header class="app-header">
       <div class="brand">
-        <div class="brand-icon" aria-hidden="true">
-          <img src="icons/capture8k-mark.svg" alt="">
-          <span id="format-mark">8K</span>
-        </div>
+        <img class="brand-icon" src="icons/capture8k-mark.svg" alt="">
         <div class="brand-copy">
           <h1>Capture8K</h1>
-          <span>Capture haute définition</span>
+          <span data-copy="subtitle">Captures web</span>
         </div>
       </div>
-      <button id="settings-toggle" class="folder-toggle" type="button" aria-label="Ouvrir les réglages" title="Réglages">
-        <span class="gear" aria-hidden="true">✦</span>
+      <button id="settings-toggle" class="settings-toggle" type="button" aria-label="Ouvrir les réglages" aria-controls="settings-view" aria-expanded="false" title="Réglages">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 8.25A3.75 3.75 0 1 0 12 15.75 3.75 3.75 0 0 0 12 8.25Zm8.1 4.88v-2.26l-2.08-.74a6.7 6.7 0 0 0-.63-1.51l.95-1.99-1.6-1.6-1.99.95a6.7 6.7 0 0 0-1.51-.63L12.5 3.27h-2.26L9.5 5.35a6.7 6.7 0 0 0-1.51.63L6 5.03l-1.6 1.6.95 1.99a6.7 6.7 0 0 0-.63 1.51l-2.08.74v2.26l2.08.74c.15.53.36 1.03.63 1.51l-.95 1.99 1.6 1.6 1.99-.95c.48.27.98.48 1.51.63l.74 2.08h2.26l.74-2.08a6.7 6.7 0 0 0 1.51-.63l1.99.95 1.6-1.6-.95-1.99c.27-.48.48-.98.63-1.51l2.08-.74Z"/>
+        </svg>
       </button>
     </header>
     <main id="capture-view">
       <fieldset class="resolution-picker">
-        <legend>Définition de la capture</legend>
+        <legend data-copy="resolution">Définition de la capture</legend>
         <div class="resolution-options">
           <label>
             <input type="radio" name="resolution" value="4k">
@@ -48,29 +47,47 @@
           <span id="status-text">Prêt</span>
         </div>
         <div class="progress" aria-hidden="true"><span id="progress-bar"></span></div>
+        <details id="capture-diagnostic" hidden>
+          <summary data-copy="technicalDetails">Détails techniques</summary>
+          <p id="capture-diagnostic-text"></p>
+        </details>
       </section>
 
-      <section class="companion" aria-label="État de l’application Capture8K">
+      <section class="companion" aria-label="État de l’application Capture8K" data-label="appStatus">
         <span class="native-dot" aria-hidden="true"></span>
         <span id="native-label">Vérification…</span>
       </section>
     </main>
-    <main id="settings-view" class="settings-view" hidden>
-      <section class="settings-card">
-        <h2>Réglages</h2>
-        <p>Personnalisez Capture8K</p>
-        <label class="setting-label" for="destination">ENREGISTREMENT</label>
-        <select id="destination">
-          <option value="downloads">Téléchargements</option>
-          <option value="premiere">Premiere Pro</option>
-          <option value="custom">Autre dossier…</option>
-        </select>
-        <span id="destination-detail" class="setting-detail"></span>
-        <button id="check-update" class="update-button" type="button">Chercher une mise à jour</button>
-        <span id="update-status" class="setting-detail">Capture8K est à jour.</span>
+    <main id="settings-view" hidden>
+      <section class="settings-panel" aria-labelledby="settings-heading">
+        <div class="panel-heading">
+          <h2 id="settings-heading" data-copy="settings">Réglages</h2>
+        </div>
+        <label class="destination-setting">
+          <span data-copy="language">Langue de l’extension</span>
+          <select id="language">
+            <option value="auto" data-copy="automatic">Automatique</option>
+            <option value="fr" lang="fr">Français</option>
+            <option value="en" lang="en">English</option>
+          </select>
+        </label>
+        <label class="destination-setting">
+          <span data-copy="saveTo">Enregistrer dans</span>
+          <select id="destination" aria-describedby="destination-detail">
+            <option value="downloads" data-copy="downloads">Téléchargements</option>
+            <option value="premiere">Premiere Pro</option>
+            <option value="custom" data-copy="custom">Autre dossier…</option>
+          </select>
+          <small id="destination-detail" class="setting-detail"></small>
+        </label>
+        <div class="update-option">
+          <button id="check-update" type="button">Chercher une mise à jour</button>
+          <small id="update-status" class="setting-detail" role="status"></small>
+        </div>
       </section>
     </main>
     <footer id="extension-version" class="extension-version"></footer>
+    <script src="popup-locales.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

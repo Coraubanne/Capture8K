@@ -9,11 +9,10 @@
       <stop offset="1" stop-color="#0068d9"/>
     </linearGradient>
   </defs>
-  <rect x="9" y="7" width="110" height="112" rx="30" fill="url(#surface)" stroke="#fff" stroke-width="3"/>
+  <rect width="128" height="128" rx="38" fill="url(#surface)"/>
+  <rect x="10" y="10" width="108" height="108" rx="30" fill="none" stroke="#fff" stroke-width="5"/>
   <g fill="none" stroke="url(#blue)" stroke-linecap="round" stroke-linejoin="round" stroke-width="9">
-    <path d="M48 37H36v12"/>
-    <path d="M80 37h12v12"/>
-    <path d="M48 91H36V79"/>
-    <path d="M80 91h12V79"/>
+    <path d="M49 35H33v16M79 35h16v16M33 77v16h16M95 77v16H79"/>
+    <circle cx="64" cy="64" r="12"/>
   </g>
 </svg>

@@ -37,6 +37,7 @@ changement de viewport.
 - garde locale qui rétablit automatiquement le mode fidèle après chaque lancement de Chrome ;
 - validation indépendante par l’app macOS avant l’écriture du PNG ;
 - dossier d’export personnalisable ;
+- interface en français ou en anglais, avec sélection automatique selon le navigateur ;
 - export direct dans le projet Premiere Pro actif via le pont partagé Creator Bridge ;
 - mise à jour vérifiée par SHA-256 de l’app, des extensions et du pont ;
 - installation anti-doublon : une seule version active par navigateur et un seul pont Premiere ;

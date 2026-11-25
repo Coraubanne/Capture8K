@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 2.8.2 · 25 novembre 2026
+
+- Alignement visuel du logo, du bouton Réglages et des champs sur ClipFlow.
+- Choix de la langue française, anglaise ou automatique dans les deux extensions.
+
 ## 2.8.1 · 25 novembre 2026
 
 - Le code, les téléchargements et le flux de mises à jour sont réunis sur le dépôt public Capture8K.
