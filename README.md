@@ -93,11 +93,13 @@ node macos/Tests/test-native-host.mjs
 
 ## Mises à jour et composants partagés
 
-Chaque release contient l’app, les deux extensions et une version précise de
+Chaque [version publiée](https://github.com/Coraubanne/Capture8K-Releases/releases)
+contient l’app, les deux extensions et une version précise de
 Creator Bridge. L’updater valide l’identité, la version, la signature de l’app
 et la somme SHA-256 avant remplacement. Il met à jour tous les chemins Chrome
-réellement chargés et les deux dossiers canoniques `~/Documents/Capture8K/Chrome`
-et `~/Documents/Capture8K/Firefox`. Une version plus récente de Creator Bridge
+réellement chargés. Pour une première installation Chrome et pour Firefox,
+les dossiers sont `~/Documents/Capture8K/Chrome` et `~/Documents/Capture8K/Firefox`.
+Une version plus récente de Creator Bridge
 n’est jamais rétrogradée ; les copies plus anciennes portant le même identifiant
 validé sont supprimées après installation réussie.
 
