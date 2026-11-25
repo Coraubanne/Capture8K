@@ -1,9 +1,9 @@
-# Capture8K 2.7.4 — extension Chrome + app macOS
+# Capture8K 2.8.0 — extension Chrome + app macOS
 
 Capture8K conserve désormais **100 % de la page visible**, sans couper le haut,
 le bas ou les côtés. Le PNG préserve le ratio exact du viewport et son grand
 côté mesure **3 840 px en 4K** ou **7 680 px en 8K**, sans agrandir
-artificiellement une capture existante. La version 2.7.4 travaille directement sur le document déjà affiché,
+artificiellement une capture existante. La version 2.8.0 travaille directement sur le document déjà affiché,
 sans dupliquer l’onglet ni recharger l’URL. Son mode Chrome dédié supprime la
 barre technique qui réduisait brièvement le viewport des sites responsives.
 
@@ -18,8 +18,10 @@ barre technique qui réduisait brièvement le viewport des sites responsives.
    **Capturer la page visible** dans l’extension.
 4. Le viewport visible complet est capturé, vérifié et enregistré.
 
-Le bouton **Dossier…**, toujours disponible dans l’extension, ouvre directement le sélecteur macOS et
-mémorise la destination des prochaines captures. Le menu de l’app permet aussi de choisir 4K ou 8K et
+La roue des réglages permet de choisir Téléchargements, Premiere Pro ou un
+autre dossier, et de lancer la mise à jour sécurisée. Creator Bridge importe
+le PNG dans le projet Premiere actif sans installer un second panneau lorsque
+ClipFlow est également présent. Le menu de l’app permet aussi de choisir 4K ou 8K et
 d’afficher ce dossier dans le Finder. Par défaut, les fichiers sont placés dans
 `Téléchargements/Capture8K` et leur URL est copiée dans le presse-papiers.
 
@@ -68,7 +70,7 @@ La phase de rendu dispose désormais de 26 secondes, ce qui laisse une enveloppe
 pratique inférieure à 30 secondes pour la capture complète.
 
 Les vidéos, canvas et cadres intégrés peuvent utiliser une surface de composition
-distincte de celle du document. La version 2.7.4 conserve alors leurs pixels
+distincte de celle du document. La version 2.8.0 conserve alors leurs pixels
 réellement visibles et certifie séparément le reste de la page rerastérisé en
 haute définition. Aucun upscale IA n’est utilisé. Les pages internes `chrome://`,
 le mode image dans l’image et certains contenus protégés peuvent rester

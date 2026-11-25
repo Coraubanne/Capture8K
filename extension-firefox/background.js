@@ -574,6 +574,52 @@ api.runtime.onMessage.addListener((message) => {
       return { ok: true };
     }).catch((error) => ({ ok: false, error: error?.message || String(error) }));
   }
+  if (message?.type === "capture8k-set-destination") {
+    const outputMode = ["downloads", "custom", "premiere"].includes(message.outputMode)
+      ? message.outputMode : "downloads";
+    return ensureNativeHost().then(() => {
+      if (outputMode === "custom") {
+        const changed = waitForNativeMessage(
+          (nativeMessage) => nativeMessage?.type === "settings-changed" && nativeMessage.outputMode === "custom",
+          5 * 60 * 1000,
+          "Le dossier n’a pas été choisi."
+        );
+        nativePort.postMessage({ type: "choose-folder" });
+        return changed;
+      }
+      const changed = waitForNativeMessage(
+        (nativeMessage) => nativeMessage?.type === "settings-changed" && nativeMessage.outputMode === outputMode,
+        2500,
+        "Capture8K n’a pas confirmé ce réglage."
+      );
+      nativePort.postMessage({ type: "set-settings", outputMode });
+      return changed;
+    }).then((settings) => ({ ok: true, settings }))
+      .catch((error) => ({ ok: false, error: error?.message || String(error) }));
+  }
+  if (message?.type === "capture8k-check-update") {
+    return ensureNativeHost().then(() => {
+      const reply = waitForNativeMessage(
+        (nativeMessage) => nativeMessage?.type === "update-status",
+        15000,
+        "La vérification de mise à jour a expiré."
+      );
+      nativePort.postMessage({ type: "check-update" });
+      return reply;
+    }).catch((error) => ({ ok: false, error: error?.message || String(error) }));
+  }
+  if (message?.type === "capture8k-install-update") {
+    return ensureNativeHost().then(() => {
+      const reply = waitForNativeMessage(
+        (nativeMessage) => nativeMessage?.type === "update-status",
+        5 * 60 * 1000,
+        "L’installation de la mise à jour a expiré."
+      );
+      nativePort.postMessage({ type: "install-update", version: message.version,
+        archiveURL: message.archiveURL, checksumURL: message.checksumURL });
+      return reply;
+    }).catch((error) => ({ ok: false, error: error?.message || String(error) }));
+  }
   return undefined;
 });
 

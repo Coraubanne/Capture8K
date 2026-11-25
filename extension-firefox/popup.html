@@ -18,13 +18,11 @@
           <span>Capture haute définition</span>
         </div>
       </div>
-      <button id="open-app" class="folder-toggle" type="button" aria-label="Choisir le dossier d’export" title="Dossier d’export">
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M3.75 5.75A2.75 2.75 0 0 1 6.5 3h3.1c.73 0 1.43.29 1.95.8l1.2 1.2h4.75a2.75 2.75 0 0 1 2.75 2.75v8.5A2.75 2.75 0 0 1 17.5 19H6.5a2.75 2.75 0 0 1-2.75-2.75V5.75Zm2.75-.8a.8.8 0 0 0-.8.8v.75h12.6a.8.8 0 0 0-.8-.55h-5.56l-1.77-1.76a.8.8 0 0 0-.57-.24H6.5Z"/>
-        </svg>
+      <button id="settings-toggle" class="folder-toggle" type="button" aria-label="Ouvrir les réglages" title="Réglages">
+        <span class="gear" aria-hidden="true">✦</span>
       </button>
     </header>
-    <main>
+    <main id="capture-view">
       <fieldset class="resolution-picker">
         <legend>Définition de la capture</legend>
         <div class="resolution-options">
@@ -55,6 +53,21 @@
       <section class="companion" aria-label="État de l’application Capture8K">
         <span class="native-dot" aria-hidden="true"></span>
         <span id="native-label">Vérification…</span>
+      </section>
+    </main>
+    <main id="settings-view" class="settings-view" hidden>
+      <section class="settings-card">
+        <h2>Réglages</h2>
+        <p>Personnalisez Capture8K</p>
+        <label class="setting-label" for="destination">ENREGISTREMENT</label>
+        <select id="destination">
+          <option value="downloads">Téléchargements</option>
+          <option value="premiere">Premiere Pro</option>
+          <option value="custom">Autre dossier…</option>
+        </select>
+        <span id="destination-detail" class="setting-detail"></span>
+        <button id="check-update" class="update-button" type="button">Chercher une mise à jour</button>
+        <span id="update-status" class="setting-detail">Capture8K est à jour.</span>
       </section>
     </main>
     <footer id="extension-version" class="extension-version"></footer>

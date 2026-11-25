@@ -198,7 +198,8 @@ NSURL *C8KSettingsURL(void) {
 NSDictionary *C8KDefaultSettings(void) {
     NSString *downloads = [[NSFileManager.defaultManager.homeDirectoryForCurrentUser
         URLByAppendingPathComponent:@"Downloads/Capture8K" isDirectory:YES] path];
-    return @{ @"resolution": @"8k", @"outputDirectory": downloads, @"copyToClipboard": @YES };
+    return @{ @"resolution": @"8k", @"outputMode": @"downloads",
+        @"outputDirectory": downloads, @"copyToClipboard": @YES };
 }
 
 NSDictionary *C8KLoadSettings(void) {
@@ -212,6 +213,12 @@ NSDictionary *C8KLoadSettings(void) {
     }
     NSString *directory = decoded[@"outputDirectory"];
     if ([directory isKindOfClass:NSString.class] && directory.length > 0) settings[@"outputDirectory"] = directory;
+    NSString *outputMode = decoded[@"outputMode"];
+    if ([@[ @"downloads", @"custom", @"premiere" ] containsObject:outputMode]) {
+        settings[@"outputMode"] = outputMode;
+    } else if ([directory isKindOfClass:NSString.class] && directory.length > 0) {
+        settings[@"outputMode"] = @"custom";
+    }
     NSNumber *clipboard = decoded[@"copyToClipboard"];
     if ([clipboard isKindOfClass:NSNumber.class]) settings[@"copyToClipboard"] = clipboard;
     return settings;
@@ -223,6 +230,75 @@ BOOL C8KSaveSettings(NSDictionary *settings, NSError **error) {
                                 withIntermediateDirectories:YES attributes:nil error:error]) return NO;
     NSData *data = [NSJSONSerialization dataWithJSONObject:settings options:0 error:error];
     return data && [data writeToURL:url options:NSDataWritingAtomic error:error];
+}
+
+static NSArray<NSNumber *> *C8KVersionParts(NSString *version) {
+    NSMutableArray<NSNumber *> *parts = [NSMutableArray array];
+    for (NSString *part in [version componentsSeparatedByString:@"."]) {
+        [parts addObject:@(MAX(0, part.integerValue))];
+    }
+    while (parts.count < 3) [parts addObject:@0];
+    return parts;
+}
+
+static NSComparisonResult C8KCompareVersions(NSString *first, NSString *second) {
+    NSArray<NSNumber *> *a = C8KVersionParts(first ?: @"0");
+    NSArray<NSNumber *> *b = C8KVersionParts(second ?: @"0");
+    for (NSUInteger index = 0; index < MAX(a.count, b.count); index++) {
+        NSInteger left = index < a.count ? a[index].integerValue : 0;
+        NSInteger right = index < b.count ? b[index].integerValue : 0;
+        if (left < right) return NSOrderedAscending;
+        if (left > right) return NSOrderedDescending;
+    }
+    return NSOrderedSame;
+}
+
+BOOL C8KInstallCreatorBridge(NSError **error) {
+    NSURL *source = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"Creator Bridge" isDirectory:YES];
+    NSData *sourceData = [NSData dataWithContentsOfURL:[source URLByAppendingPathComponent:@"manifest.json"]];
+    NSDictionary *sourceManifest = sourceData
+        ? [NSJSONSerialization JSONObjectWithData:sourceData options:0 error:nil] : nil;
+    if (![sourceManifest[@"id"] isEqualToString:@"fr.clipflow.premiere.bridge"]) {
+        if (error) *error = [NSError errorWithDomain:@"com.capture8k.app" code:60 userInfo:@{
+            NSLocalizedDescriptionKey: @"Le composant Creator Bridge intégré est invalide."
+        }];
+        return NO;
+    }
+    NSString *sourceVersion = [sourceManifest[@"version"] isKindOfClass:NSString.class]
+        ? sourceManifest[@"version"] : @"0";
+    NSURL *root = [NSFileManager.defaultManager.homeDirectoryForCurrentUser
+        URLByAppendingPathComponent:@"Library/Application Support/Adobe/UXP/Plugins/External" isDirectory:YES];
+    if (![NSFileManager.defaultManager createDirectoryAtURL:root withIntermediateDirectories:YES
+            attributes:nil error:error]) return NO;
+    NSURL *target = [root URLByAppendingPathComponent:
+        [NSString stringWithFormat:@"fr.clipflow.premiere.bridge_%@", sourceVersion] isDirectory:YES];
+    NSString *newestInstalledVersion = @"0";
+    NSMutableArray<NSURL *> *olderCopies = [NSMutableArray array];
+    NSArray<NSURL *> *entries = [NSFileManager.defaultManager contentsOfDirectoryAtURL:root
+        includingPropertiesForKeys:nil options:NSDirectoryEnumerationSkipsHiddenFiles error:nil] ?: @[];
+    for (NSURL *entry in entries) {
+        if (![entry.lastPathComponent hasPrefix:@"fr.clipflow.premiere.bridge_"]) continue;
+        NSData *data = [NSData dataWithContentsOfURL:[entry URLByAppendingPathComponent:@"manifest.json"]];
+        NSDictionary *manifest = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+        if (![manifest[@"id"] isEqualToString:@"fr.clipflow.premiere.bridge"]) continue;
+        NSString *version = [manifest[@"version"] isKindOfClass:NSString.class] ? manifest[@"version"] : @"0";
+        if (C8KCompareVersions(version, newestInstalledVersion) == NSOrderedDescending) newestInstalledVersion = version;
+        if (C8KCompareVersions(version, sourceVersion) == NSOrderedAscending) [olderCopies addObject:entry];
+    }
+    if (C8KCompareVersions(newestInstalledVersion, sourceVersion) == NSOrderedDescending) return YES;
+    if (![NSFileManager.defaultManager fileExistsAtPath:target.path]) {
+        NSURL *staged = [root URLByAppendingPathComponent:@".creator-bridge-new" isDirectory:YES];
+        [NSFileManager.defaultManager removeItemAtURL:staged error:nil];
+        if (![NSFileManager.defaultManager copyItemAtURL:source toURL:staged error:error]) return NO;
+        if (![NSFileManager.defaultManager moveItemAtURL:staged toURL:target error:error]) {
+            [NSFileManager.defaultManager removeItemAtURL:staged error:nil];
+            return NO;
+        }
+    }
+    for (NSURL *older in olderCopies) {
+        if (![older.path isEqualToString:target.path]) [NSFileManager.defaultManager removeItemAtURL:older error:nil];
+    }
+    return YES;
 }
 
 NSString *C8KSanitizedFilename(NSString *filename) {

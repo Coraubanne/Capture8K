@@ -1,5 +1,7 @@
 .DS_Store
 *.zip
+*.zip.sha256
+macos/Resources/com.capture8k.native.json
 macos/build/
 **/ModuleCache/
 outputs/

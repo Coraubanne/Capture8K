@@ -83,6 +83,7 @@ function dispatchNativeMessage(message) {
     const browserCaptureModeReady = message.browserCaptureModeReady === true;
     chrome.storage.local.set({
       captureResolution: formatId,
+      outputMode: message.outputMode || "downloads",
       outputDirectory: message.outputDirectory || "Téléchargements/Capture8K",
       nativeConnected: true,
       browserCaptureModeReady
@@ -94,6 +95,7 @@ function dispatchNativeMessage(message) {
         progress: 0,
         formatId,
         nativeConnected: true,
+        outputMode: message.outputMode || "downloads",
         outputDirectory: message.outputDirectory,
         browserCaptureModeReady,
         browserName: message.browserName || "Google Chrome"
@@ -2609,6 +2611,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then((settings) => sendResponse({
         connected: true,
         outputDirectory: settings.outputDirectory,
+        outputMode: settings.outputMode || "downloads",
         formatId: resolveFormat(settings.resolution).id,
         browserCaptureModeReady: settings.browserCaptureModeReady === true,
         browserName: settings.browserName || "Google Chrome"
@@ -2639,6 +2642,63 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return reply;
       })
       .then((nativeReply) => sendResponse({ ok: nativeReply?.ok === true }))
+      .catch((error) => sendResponse({ ok: false, error: friendlyError(error) }));
+    return true;
+  }
+  if (message?.type === "capture8k-set-destination") {
+    const outputMode = ["downloads", "custom", "premiere"].includes(message.outputMode)
+      ? message.outputMode : "downloads";
+    ensureNativeHost()
+      .then(() => {
+        if (outputMode === "custom") {
+          const changed = waitForNativeMessage(
+            (nativeMessage) => nativeMessage?.type === "settings-changed" && nativeMessage.outputMode === "custom",
+            5 * 60 * 1000,
+            "Le dossier n’a pas été choisi."
+          );
+          nativePort.postMessage({ type: "choose-folder" });
+          return changed;
+        }
+        const changed = waitForNativeMessage(
+          (nativeMessage) => nativeMessage?.type === "settings-changed" && nativeMessage.outputMode === outputMode,
+          2500,
+          "Capture8K n’a pas confirmé ce réglage."
+        );
+        nativePort.postMessage({ type: "set-settings", outputMode });
+        return changed;
+      })
+      .then((settings) => sendResponse({ ok: true, settings }))
+      .catch((error) => sendResponse({ ok: false, error: friendlyError(error) }));
+    return true;
+  }
+  if (message?.type === "capture8k-check-update") {
+    ensureNativeHost()
+      .then(() => {
+        const reply = waitForNativeMessage(
+          (nativeMessage) => nativeMessage?.type === "update-status",
+          15000,
+          "La vérification de mise à jour a expiré."
+        );
+        nativePort.postMessage({ type: "check-update" });
+        return reply;
+      })
+      .then((reply) => sendResponse(reply))
+      .catch((error) => sendResponse({ ok: false, error: friendlyError(error) }));
+    return true;
+  }
+  if (message?.type === "capture8k-install-update") {
+    ensureNativeHost()
+      .then(() => {
+        const reply = waitForNativeMessage(
+          (nativeMessage) => nativeMessage?.type === "update-status",
+          5 * 60 * 1000,
+          "L’installation de la mise à jour a expiré."
+        );
+        nativePort.postMessage({ type: "install-update", version: message.version,
+          archiveURL: message.archiveURL, checksumURL: message.checksumURL });
+        return reply;
+      })
+      .then((reply) => sendResponse(reply))
       .catch((error) => sendResponse({ ok: false, error: friendlyError(error) }));
     return true;
   }

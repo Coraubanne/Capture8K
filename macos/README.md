@@ -1,12 +1,14 @@
 # Capture8K.app
 
-Compagnon macOS natif des extensions Capture8K 2.7.3 pour Chrome et Firefox.
+Compagnon macOS natif des extensions Capture8K 2.8.0 pour Chrome et Firefox.
 
 - garde automatique qui relance Chrome en mode fidèle uniquement lorsqu'il manque ;
 - prise en charge directe du rerendu haute densité natif de Firefox ;
 - menu 4K / 8K dans la barre des menus ;
 - réglages partagés avec le raccourci Chrome `⌘⇧8` ;
 - dossier de destination personnalisable directement depuis l’extension ;
+- import des PNG dans Premiere Pro par Creator Bridge ;
+- mise à jour sécurisée et anti-doublon de tous les composants ;
 - réception locale des PNG par Native Messaging ;
 - comparaison de la référence, du témoin direct et du rendu final ;
 - composition fidèle et contrôlée des surfaces vidéo, canvas et iframe ;

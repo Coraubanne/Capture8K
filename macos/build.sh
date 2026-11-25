@@ -2,6 +2,13 @@
 set -euo pipefail
 
 script_dir=${0:A:h}
+if [[ -n "${CREATOR_BRIDGE_DIR:-}" ]]; then
+  creator_bridge_dir="$CREATOR_BRIDGE_DIR"
+elif [[ -f "$script_dir/../vendor/CreatorBridge/manifest.json" ]]; then
+  creator_bridge_dir="$script_dir/../vendor/CreatorBridge"
+else
+  creator_bridge_dir="$script_dir/../../publish/Capture8K/vendor/CreatorBridge"
+fi
 build_root="$script_dir/build"
 app_root="$build_root/Capture8K.app"
 macos_dir="$app_root/Contents/MacOS"
@@ -23,5 +30,10 @@ clang -O2 -fobjc-arc -fmodules -fmodules-cache-path="$module_cache" \
   "$script_dir/Sources/Capture8KNativeHost/main.m" \
   -o "$macos_dir/Capture8KNativeHost"
 cp "$script_dir/Resources/Info.plist" "$app_root/Contents/Info.plist"
+[[ -f "$creator_bridge_dir/manifest.json" ]] || { print -u2 "Creator Bridge introuvable : $creator_bridge_dir"; exit 1; }
+rm -rf "$resources_dir/Creator Bridge"
+ditto "$creator_bridge_dir" "$resources_dir/Creator Bridge"
+cp "$script_dir/Resources/install-update.sh" "$resources_dir/install-update.sh"
+chmod 755 "$resources_dir/install-update.sh"
 codesign --force --deep --sign - "$app_root"
 echo "$app_root"

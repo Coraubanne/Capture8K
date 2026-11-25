@@ -19,6 +19,9 @@ changement de viewport.
 - garde locale qui rétablit automatiquement le mode fidèle après chaque lancement de Chrome ;
 - validation indépendante par l’app macOS avant l’écriture du PNG ;
 - dossier d’export personnalisable ;
+- export direct dans le projet Premiere Pro actif via le pont partagé Creator Bridge ;
+- mise à jour vérifiée par SHA-256 de l’app, des extensions et du pont ;
+- installation anti-doublon : une seule version active par navigateur et un seul pont Premiere ;
 - raccourci macOS `⌘⇧8` ;
 - aucune IA et aucun envoi vers un service distant.
 
@@ -32,8 +35,9 @@ changement de viewport.
 ## Installation locale
 
 1. Cloner le dépôt.
-2. Pour Chrome, ouvrir `chrome://extensions`, activer le mode développeur,
-   choisir **Charger l’extension non empaquetée**, puis sélectionner `extension`.
+2. Initialiser les dépendances avec `git submodule update --init`, puis ouvrir
+   `chrome://extensions`, activer le mode développeur, choisir **Charger
+   l’extension non empaquetée**, puis sélectionner `extension`.
 3. Copier l’identifiant affiché par Chrome pour Capture8K, puis lancer :
 
    ```sh
@@ -53,14 +57,20 @@ AMO pour conserver une extension après la fermeture de Firefox.
 ## Utilisation
 
 Ouvrir une page web, choisir 4K ou 8K dans le popup, puis cliquer sur
-**Capturer** ou utiliser `⌘⇧8`. Le bouton **Dossier…** choisit la destination
-des prochaines captures.
+**Capturer** ou utiliser `⌘⇧8`. La roue ouvre les réglages : destination
+Téléchargements, autre dossier ou Premiere Pro, ainsi que la mise à jour.
+La destination Premiere crée `Captures Capture8K` à côté du projet enregistré
+et ajoute immédiatement le PNG au projet actif.
 
 ## Architecture
 
 - `extension/` : extension Chrome Manifest V3 ;
 - `extension-firefox/` : extension Firefox Manifest V3 ;
 - `macos/` : app de barre des menus et hôte Native Messaging en Objective-C ;
+- `vendor/CreatorBridge` : référence Git vers le projet autonome
+  [Creator Bridge](https://github.com/Coraubanne/CreatorBridge) ;
+- `scripts/build-release.sh` : archive complète et somme SHA-256 attendues par
+  l’updater sécurisé ;
 - `tests/` : tests du moteur de capture ;
 - `install-macos.sh` : compilation, installation de l’app et génération du
   manifeste Native Messaging propre à l’utilisateur.
@@ -80,6 +90,16 @@ node tests/test-background.mjs
 ./macos/build.sh
 node macos/Tests/test-native-host.mjs
 ```
+
+## Mises à jour et composants partagés
+
+Chaque release contient l’app, les deux extensions et une version précise de
+Creator Bridge. L’updater valide l’identité, la version, la signature de l’app
+et la somme SHA-256 avant remplacement. Il met à jour tous les chemins Chrome
+réellement chargés et les deux dossiers canoniques `~/Documents/Capture8K/Chrome`
+et `~/Documents/Capture8K/Firefox`. Une version plus récente de Creator Bridge
+n’est jamais rétrogradée ; les copies plus anciennes portant le même identifiant
+validé sont supprimées après installation réussie.
 
 ## Licence
 

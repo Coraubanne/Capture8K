@@ -68,6 +68,7 @@ static int C8KPrepareBrowserDirectly(void) {
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
     [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
     C8KSaveSettings(C8KLoadSettings(), nil);
+    C8KInstallCreatorBridge(nil);
     [NSDistributedNotificationCenter.defaultCenter addObserver:self
         selector:@selector(prepareBrowserRequested:) name:C8KPrepareBrowserNotification object:nil];
     [NSDistributedNotificationCenter.defaultCenter addObserver:self
@@ -290,6 +291,7 @@ static int C8KPrepareBrowserDirectly(void) {
     if (response == NSModalResponseOK && panel.URL) {
         NSMutableDictionary *settings = [C8KLoadSettings() mutableCopy];
         settings[@"outputDirectory"] = panel.URL.path;
+        settings[@"outputMode"] = @"custom";
         C8KSaveSettings(settings, nil);
         [NSDistributedNotificationCenter.defaultCenter postNotificationName:C8KSettingsChangedNotification
             object:nil userInfo:nil deliverImmediately:YES];

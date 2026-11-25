@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,9 +21,24 @@ const temporaryRoot = await mkdtemp(join(tmpdir(), "capture8k-host-test-"));
 const outputDirectory = join(temporaryRoot, "output");
 const settingsPath = join(temporaryRoot, "settings.json");
 await writeFile(settingsPath, JSON.stringify({ resolution: "8k", outputDirectory, copyToClipboard: false }));
+const premiereBridge = join(temporaryRoot, "CreatorBridge");
+const premiereProjectDirectory = join(temporaryRoot, "PremiereProject");
+const premiereProject = join(premiereProjectDirectory, "Test.prproj");
+await mkdir(premiereBridge, { recursive: true });
+await mkdir(premiereProjectDirectory, { recursive: true });
+await writeFile(premiereProject, "");
+await writeFile(join(premiereBridge, "active-project.json"), JSON.stringify({
+  projectPath: premiereProject,
+  projectName: "Test",
+  updatedAt: Date.now()
+}));
 
 const child = spawn(hostPath, ["chrome-extension://test/"], {
-  env: { ...process.env, CAPTURE8K_SETTINGS_PATH: settingsPath },
+  env: {
+    ...process.env,
+    CAPTURE8K_SETTINGS_PATH: settingsPath,
+    CAPTURE8K_PREMIERE_BRIDGE_PATH: premiereBridge
+  },
   stdio: ["pipe", "pipe", "pipe"]
 });
 
@@ -74,6 +89,7 @@ try {
   send({ type: "ping" });
   const settings = await waitFor(message => message.type === "settings");
   assert.equal(settings.resolution, "8k");
+  assert.equal(settings.outputMode, "custom");
   assert.equal(settings.outputDirectory, outputDirectory);
   assert.equal(typeof settings.browserCaptureModeReady, "boolean");
   assert.equal(typeof settings.browserName, "string");
@@ -113,6 +129,32 @@ try {
     const outputFiles = await readdir(outputDirectory);
     assert.equal(outputFiles.length, 1);
     assert.equal(outputFiles[0], "test-certifie.png");
+    send({ type: "set-settings", outputMode: "premiere" });
+    const premiereSettings = await waitFor(message => message.type === "settings-changed" && message.outputMode === "premiere");
+    assert.equal(premiereSettings.outputMode, "premiere");
+
+    const premiereJobId = "premiere-import-test";
+    send({ type: "save-begin", jobId: premiereJobId, filename: "premiere.png", expectedWidth, expectedHeight });
+    await waitFor(message => message.type === "save-ready" && message.jobId === premiereJobId);
+    for (const kind of ["reference", "baseline", "render"]) {
+      const encoded = image.toString("base64");
+      for (let offset = 0; offset < encoded.length; offset += chunkSize) {
+        send({ type: "save-chunk", jobId: premiereJobId, kind, data: encoded.slice(offset, offset + chunkSize) });
+      }
+    }
+    send({ type: "save-end", jobId: premiereJobId });
+    const premiereCompleted = await waitFor(
+      message => message.type === "save-complete" && message.jobId === premiereJobId,
+      30000
+    );
+    assert.equal(premiereCompleted.ok, true, JSON.stringify(premiereCompleted));
+    assert.equal(premiereCompleted.premiereImportQueued, true);
+    assert.equal(premiereCompleted.path, join(premiereProjectDirectory, "Captures Capture8K", "premiere.png"));
+    const importJob = JSON.parse(await readFile(
+      join(premiereBridge, "Imports", `${premiereJobId}.json`), "utf8"
+    ));
+    assert.equal(importJob.producer, "capture8k");
+    assert.equal(importJob.projectPath, premiereProject);
     console.log(JSON.stringify({ nativeHost: "OK", width: expectedWidth, height: expectedHeight, output: completed.path }));
   }
 } finally {

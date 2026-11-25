@@ -53,6 +53,225 @@ static NSError *C8KError(NSInteger code, NSString *message) {
         userInfo:@{ NSLocalizedDescriptionKey: message }];
 }
 
+static NSArray<NSNumber *> *C8KSemanticVersion(NSString *value) {
+    NSString *clean = [value hasPrefix:@"v"] ? [value substringFromIndex:1] : value;
+    NSArray<NSString *> *raw = [clean componentsSeparatedByString:@"."];
+    if (raw.count != 3) return nil;
+    NSMutableArray<NSNumber *> *result = [NSMutableArray array];
+    NSCharacterSet *invalid = NSCharacterSet.decimalDigitCharacterSet.invertedSet;
+    for (NSString *part in raw) {
+        if (part.length == 0 || [part rangeOfCharacterFromSet:invalid].location != NSNotFound) return nil;
+        [result addObject:@(part.integerValue)];
+    }
+    return result;
+}
+
+static NSComparisonResult C8KCompareSemanticVersions(NSString *first, NSString *second) {
+    NSArray<NSNumber *> *a = C8KSemanticVersion(first);
+    NSArray<NSNumber *> *b = C8KSemanticVersion(second);
+    if (!a || !b) return NSOrderedSame;
+    for (NSUInteger index = 0; index < 3; index++) {
+        if (a[index].integerValue < b[index].integerValue) return NSOrderedAscending;
+        if (a[index].integerValue > b[index].integerValue) return NSOrderedDescending;
+    }
+    return NSOrderedSame;
+}
+
+static NSDictionary *C8KCheckUpdate(NSError **error) {
+    NSURL *url = [NSURL URLWithString:@"https://api.github.com/repos/Coraubanne/Capture8K/releases/latest"];
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:12.0];
+    [request setValue:@"application/vnd.github+json" forHTTPHeaderField:@"Accept"];
+    [request setValue:@"Capture8K/2.8.0" forHTTPHeaderField:@"User-Agent"];
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+    __block NSData *responseData = nil;
+    __block NSError *requestError = nil;
+    __block NSInteger statusCode = 0;
+    [[[NSURLSession sharedSession] dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *taskError) {
+        responseData = data; requestError = taskError;
+        if ([response isKindOfClass:NSHTTPURLResponse.class]) statusCode = ((NSHTTPURLResponse *)response).statusCode;
+        dispatch_semaphore_signal(semaphore);
+    }] resume];
+    dispatch_semaphore_wait(semaphore, dispatch_time(DISPATCH_TIME_NOW, 13 * NSEC_PER_SEC));
+    NSString *current = NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"] ?: @"2.8.0";
+    if (!requestError && statusCode == 404) {
+        return @{ @"type": @"update-status", @"ok": @YES, @"currentVersion": current,
+            @"latestVersion": current, @"updateAvailable": @NO,
+            @"releaseURL": @"https://github.com/Coraubanne/Capture8K/releases" };
+    }
+    if (requestError || !responseData || statusCode != 200) {
+        if (error) *error = C8KError(70, @"Impossible de joindre la release sécurisée sur GitHub.");
+        return nil;
+    }
+    NSDictionary *release = [NSJSONSerialization JSONObjectWithData:responseData options:0 error:error];
+    NSString *tag = [release[@"tag_name"] isKindOfClass:NSString.class] ? release[@"tag_name"] : nil;
+    if (!C8KSemanticVersion(tag)) {
+        if (error) *error = C8KError(71, @"La version publiée sur GitHub est invalide.");
+        return nil;
+    }
+    NSString *latest = [tag hasPrefix:@"v"] ? [tag substringFromIndex:1] : tag;
+    BOOL available = C8KCompareSemanticVersions(tag, current) == NSOrderedDescending;
+    NSString *archiveName = [NSString stringWithFormat:@"Capture8K-complet-v%@.zip", latest];
+    NSString *checksumName = [archiveName stringByAppendingString:@".sha256"];
+    NSString *archiveURL = @"";
+    NSString *checksumURL = @"";
+    for (NSDictionary *asset in [release[@"assets"] isKindOfClass:NSArray.class] ? release[@"assets"] : @[]) {
+        NSString *name = asset[@"name"];
+        NSString *download = asset[@"browser_download_url"];
+        if ([name isEqualToString:archiveName] && [download isKindOfClass:NSString.class]) archiveURL = download;
+        if ([name isEqualToString:checksumName] && [download isKindOfClass:NSString.class]) checksumURL = download;
+    }
+    if (available && (archiveURL.length == 0 || checksumURL.length == 0)) {
+        if (error) *error = C8KError(72, @"La release Capture8K est incomplète ; installation annulée.");
+        return nil;
+    }
+    return @{ @"type": @"update-status", @"ok": @YES, @"currentVersion": current,
+        @"latestVersion": latest, @"updateAvailable": @(available),
+        @"archiveURL": archiveURL, @"checksumURL": checksumURL,
+        @"releaseURL": release[@"html_url"] ?: @"https://github.com/Coraubanne/Capture8K/releases/latest" };
+}
+
+static NSArray<NSString *> *C8KInstalledChromeExtensionPaths(void) {
+    NSURL *chrome = [NSFileManager.defaultManager.homeDirectoryForCurrentUser
+        URLByAppendingPathComponent:@"Library/Application Support/Google/Chrome" isDirectory:YES];
+    NSMutableOrderedSet<NSString *> *paths = [NSMutableOrderedSet orderedSet];
+    for (NSURL *profile in [NSFileManager.defaultManager contentsOfDirectoryAtURL:chrome
+            includingPropertiesForKeys:nil options:NSDirectoryEnumerationSkipsHiddenFiles error:nil] ?: @[]) {
+        NSData *data = [NSData dataWithContentsOfURL:[profile URLByAppendingPathComponent:@"Secure Preferences"]];
+        NSDictionary *preferences = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+        NSDictionary *settings = preferences[@"extensions"][@"settings"];
+        if (![settings isKindOfClass:NSDictionary.class]) continue;
+        for (NSDictionary *entry in settings.allValues) {
+            NSString *path = [entry[@"path"] isKindOfClass:NSString.class] ? entry[@"path"] : nil;
+            NSData *manifestData = path.length > 0 ? [NSData dataWithContentsOfFile:[path stringByAppendingPathComponent:@"manifest.json"]] : nil;
+            NSDictionary *manifest = manifestData ? [NSJSONSerialization JSONObjectWithData:manifestData options:0 error:nil] : nil;
+            NSString *name = [manifest[@"name"] isKindOfClass:NSString.class] ? manifest[@"name"] : @"";
+            if ([name hasPrefix:@"Capture8K"] && [path hasPrefix:NSHomeDirectory()]) [paths addObject:path];
+        }
+    }
+    return paths.array;
+}
+
+static NSDictionary *C8KInstallUpdate(NSDictionary *message, NSError **error) {
+    NSString *version = message[@"version"];
+    NSString *archiveURL = message[@"archiveURL"];
+    NSString *checksumURL = message[@"checksumURL"];
+    if (!C8KSemanticVersion(version) || ![archiveURL hasPrefix:@"https://"] || ![checksumURL hasPrefix:@"https://"]) {
+        if (error) *error = C8KError(73, @"Paramètres de mise à jour invalides.");
+        return nil;
+    }
+    NSURL *executable = [NSURL fileURLWithPath:NSProcessInfo.processInfo.arguments.firstObject].standardizedURL;
+    NSURL *appURL = executable.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent;
+    NSURL *helper = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"install-update.sh"];
+    if (![NSFileManager.defaultManager isExecutableFileAtPath:helper.path]) {
+        if (error) *error = C8KError(74, @"Le moteur de mise à jour Capture8K est absent.");
+        return nil;
+    }
+    NSTask *task = [[NSTask alloc] init];
+    task.executableURL = [NSURL fileURLWithPath:@"/bin/zsh"];
+    task.arguments = @[ helper.path, version, archiveURL, checksumURL, appURL.path ];
+    NSMutableDictionary *environment = [NSProcessInfo.processInfo.environment mutableCopy];
+    environment[@"CAPTURE8K_CHROME_TARGETS"] = [C8KInstalledChromeExtensionPaths() componentsJoinedByString:@"\n"];
+    task.environment = environment;
+    NSPipe *output = [NSPipe pipe];
+    NSPipe *failure = [NSPipe pipe];
+    task.standardOutput = output;
+    task.standardError = failure;
+    if (![task launchAndReturnError:error]) return nil;
+    [task waitUntilExit];
+    NSData *failureData = [failure.fileHandleForReading readDataToEndOfFile];
+    if (task.terminationStatus != 0) {
+        NSString *detail = [[NSString alloc] initWithData:failureData encoding:NSUTF8StringEncoding];
+        if (error) *error = C8KError(75, detail.length > 0 ? detail : @"L’installation automatique a échoué.");
+        return nil;
+    }
+    return @{ @"type": @"update-status", @"ok": @YES, @"installed": @YES,
+        @"currentVersion": version, @"latestVersion": version, @"updateAvailable": @NO,
+        @"message": @"Capture8K et Creator Bridge ont été mis à jour." };
+}
+
+static NSDictionary *C8KActivePremiereConnection(NSError **error) {
+    NSURL *storage = [NSFileManager.defaultManager.homeDirectoryForCurrentUser
+        URLByAppendingPathComponent:@"Library/Application Support/Adobe/UXP/PluginsStorage/PPRO" isDirectory:YES];
+    NSMutableArray<NSURL *> *bridges = [NSMutableArray array];
+    NSString *override = NSProcessInfo.processInfo.environment[@"CAPTURE8K_PREMIERE_BRIDGE_PATH"];
+    if (override.length > 0) [bridges addObject:[NSURL fileURLWithPath:override isDirectory:YES]];
+    for (NSURL *versionDirectory in [NSFileManager.defaultManager contentsOfDirectoryAtURL:storage
+            includingPropertiesForKeys:nil options:NSDirectoryEnumerationSkipsHiddenFiles error:nil] ?: @[]) {
+        NSURL *bridge = [versionDirectory URLByAppendingPathComponent:
+            @"External/fr.clipflow.premiere.bridge/PluginData" isDirectory:YES];
+        if ([NSFileManager.defaultManager fileExistsAtPath:bridge.path]) [bridges addObject:bridge];
+    }
+    NSURL *legacy = [NSFileManager.defaultManager.homeDirectoryForCurrentUser
+        URLByAppendingPathComponent:@"Library/Application Support/ClipFlow/Premiere" isDirectory:YES];
+    if ([NSFileManager.defaultManager fileExistsAtPath:legacy.path]) [bridges addObject:legacy];
+    NSDictionary *bestState = nil;
+    NSURL *bestBridge = nil;
+    NSTimeInterval bestTimestamp = 0;
+    for (NSURL *bridge in bridges) {
+        NSData *data = [NSData dataWithContentsOfURL:[bridge URLByAppendingPathComponent:@"active-project.json"]];
+        NSDictionary *state = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+        NSTimeInterval timestamp = [state[@"updatedAt"] doubleValue];
+        if ([state isKindOfClass:NSDictionary.class] && timestamp > bestTimestamp) {
+            bestState = state; bestBridge = bridge; bestTimestamp = timestamp;
+        }
+    }
+    if (!bestState || NSDate.date.timeIntervalSince1970 - bestTimestamp / 1000.0 > 15.0) {
+        if (error) *error = C8KError(30,
+            @"Ouvre un projet enregistré et le panneau Creator Bridge dans Premiere Pro.");
+        return nil;
+    }
+    NSString *projectPath = [bestState[@"projectPath"] isKindOfClass:NSString.class]
+        ? bestState[@"projectPath"] : nil;
+    BOOL isProject = projectPath.length > 0 && [projectPath.pathExtension.lowercaseString isEqualToString:@"prproj"] &&
+        [NSFileManager.defaultManager fileExistsAtPath:projectPath];
+    if (!isProject) {
+        if (error) *error = C8KError(31, @"Enregistre d’abord le projet Premiere Pro actif.");
+        return nil;
+    }
+    return @{ @"projectPath": projectPath, @"bridgePath": bestBridge.path };
+}
+
+static NSURL *C8KCaptureDestination(NSDictionary *settings, NSDictionary **premiere, NSError **error) {
+    NSString *mode = settings[@"outputMode"];
+    if ([mode isEqualToString:@"premiere"]) {
+        NSDictionary *connection = C8KActivePremiereConnection(error);
+        if (!connection) return nil;
+        NSURL *project = [NSURL fileURLWithPath:connection[@"projectPath"]];
+        NSURL *directory = [project.URLByDeletingLastPathComponent
+            URLByAppendingPathComponent:@"Captures Capture8K" isDirectory:YES];
+        if (premiere) *premiere = connection;
+        return directory;
+    }
+    if ([mode isEqualToString:@"downloads"]) {
+        return [NSFileManager.defaultManager.homeDirectoryForCurrentUser
+            URLByAppendingPathComponent:@"Downloads/Capture8K" isDirectory:YES];
+    }
+    NSString *path = settings[@"outputDirectory"];
+    return path.length > 0 ? [NSURL fileURLWithPath:path isDirectory:YES] : nil;
+}
+
+static BOOL C8KQueuePremiereImport(NSURL *media, NSDictionary *connection, NSString *jobId, NSError **error) {
+    NSURL *bridge = [NSURL fileURLWithPath:connection[@"bridgePath"] isDirectory:YES];
+    NSURL *imports = [bridge URLByAppendingPathComponent:@"Imports" isDirectory:YES];
+    NSURL *results = [bridge URLByAppendingPathComponent:@"Results" isDirectory:YES];
+    if (![NSFileManager.defaultManager createDirectoryAtURL:imports withIntermediateDirectories:YES attributes:nil error:error] ||
+        ![NSFileManager.defaultManager createDirectoryAtURL:results withIntermediateDirectories:YES attributes:nil error:error]) return NO;
+    NSString *identifier = jobId.length > 0 ? jobId : NSUUID.UUID.UUIDString;
+    NSDictionary *payload = @{
+        @"schemaVersion": @1, @"jobId": identifier,
+        @"producer": @"capture8k", @"producerName": @"Capture8K", @"kind": @"still",
+        @"mediaPath": media.path, @"projectPath": connection[@"projectPath"],
+        @"requestedAt": @((long long)(NSDate.date.timeIntervalSince1970 * 1000.0))
+    };
+    NSData *data = [NSJSONSerialization dataWithJSONObject:payload options:0 error:error];
+    if (!data) return NO;
+    NSURL *temporary = [imports URLByAppendingPathComponent:[NSString stringWithFormat:@".%@.tmp", identifier]];
+    NSURL *target = [imports URLByAppendingPathComponent:[identifier stringByAppendingString:@".json"]];
+    if (![data writeToURL:temporary options:NSDataWritingAtomic error:error]) return NO;
+    [NSFileManager.defaultManager removeItemAtURL:target error:nil];
+    return [NSFileManager.defaultManager moveItemAtURL:temporary toURL:target error:error];
+}
+
 static CGImageRef C8KLoadImage(NSURL *url, NSError **error) CF_RETURNS_RETAINED {
     CGImageSourceRef source = CGImageSourceCreateWithURL((__bridge CFURLRef)url, NULL);
     CGImageRef image = source ? CGImageSourceCreateImageAtIndex(source, 0, NULL) : NULL;
@@ -381,11 +600,20 @@ static BOOL C8KWriteComposite(CGImageRef reference, CGImageRef render,
     }
     CGImageRelease(reference); CGImageRelease(baseline); CGImageRelease(render);
     NSDictionary *settings = C8KLoadSettings();
-    NSURL *outputDirectory = [NSURL fileURLWithPath:settings[@"outputDirectory"] isDirectory:YES];
+    NSDictionary *premiereConnection = nil;
+    NSURL *outputDirectory = C8KCaptureDestination(settings, &premiereConnection, error);
+    if (!outputDirectory) return nil;
     if (![NSFileManager.defaultManager createDirectoryAtURL:outputDirectory
             withIntermediateDirectories:YES attributes:nil error:error]) return nil;
     NSURL *destination = C8KUniqueDestination(outputDirectory, self.filename);
     if (![NSFileManager.defaultManager moveItemAtURL:finalURL toURL:destination error:error]) return nil;
+    BOOL premiereQueued = NO;
+    NSString *premiereWarning = @"";
+    if (premiereConnection) {
+        NSError *importError = nil;
+        premiereQueued = C8KQueuePremiereImport(destination, premiereConnection, self.identifier, &importError);
+        if (!premiereQueued) premiereWarning = importError.localizedDescription ?: @"Import Premiere Pro en attente.";
+    }
     if ([settings[@"copyToClipboard"] boolValue]) {
         dispatch_sync(dispatch_get_main_queue(), ^{
             [NSPasteboard.generalPasteboard clearContents];
@@ -395,6 +623,8 @@ static BOOL C8KWriteComposite(CGImageRef reference, CGImageRef render,
     return @{
         @"type": @"save-complete", @"jobId": self.identifier, @"ok": @YES,
         @"path": destination.path, @"width": @(renderWidth), @"height": @(renderHeight),
+        @"premiereImportQueued": @(premiereQueued),
+        @"premiereImportWarning": premiereWarning,
         @"mirrorMeanDifference": @(mirrorMean), @"mirrorChangedPixelRatio": @(mirrorChanged),
         @"mirrorEdgeMismatch": @(mirrorEdges), @"mirrorEdgeCount": @(mirrorEdgeCount),
         @"compositedSurfaceCount": @(self.compositedRegions.count),
@@ -430,6 +660,7 @@ static BOOL C8KWriteComposite(CGImageRef reference, CGImageRef render,
     NSDictionary *browser = C8KBrowserStatus();
     return @{
         @"type": type, @"resolution": settings[@"resolution"],
+        @"outputMode": settings[@"outputMode"],
         @"outputDirectory": settings[@"outputDirectory"],
         @"copyToClipboard": settings[@"copyToClipboard"],
         @"browserRunning": browser[@"running"],
@@ -492,10 +723,33 @@ static BOOL C8KWriteComposite(CGImageRef reference, CGImageRef render,
         NSMutableDictionary *settings = [C8KLoadSettings() mutableCopy];
         NSString *resolution = message[@"resolution"];
         if ([resolution isEqualToString:@"4k"] || [resolution isEqualToString:@"8k"]) settings[@"resolution"] = resolution;
+        NSString *outputMode = message[@"outputMode"];
+        if ([@[ @"downloads", @"custom", @"premiere" ] containsObject:outputMode]) {
+            if ([outputMode isEqualToString:@"premiere"] && !C8KInstallCreatorBridge(error)) return NO;
+            settings[@"outputMode"] = outputMode;
+        }
         if ([message[@"copyToClipboard"] isKindOfClass:NSNumber.class]) settings[@"copyToClipboard"] = message[@"copyToClipboard"];
         BOOL saved = C8KSaveSettings(settings, error);
         if (saved) C8KWriteMessage([self settingsMessage:@"settings-changed"]);
         return saved;
+    }
+    if ([type isEqualToString:@"check-update"]) {
+        NSError *updateError = nil;
+        NSDictionary *status = C8KCheckUpdate(&updateError);
+        if (!status) {
+            C8KWriteMessage(@{ @"type": @"update-status", @"ok": @NO,
+                @"error": updateError.localizedDescription ?: @"La vérification a échoué." });
+            return YES;
+        }
+        C8KWriteMessage(status);
+        return YES;
+    }
+    if ([type isEqualToString:@"install-update"]) {
+        NSError *updateError = nil;
+        NSDictionary *status = C8KInstallUpdate(message, &updateError);
+        C8KWriteMessage(status ?: @{ @"type": @"update-status", @"ok": @NO,
+            @"error": updateError.localizedDescription ?: @"L’installation a échoué." });
+        return YES;
     }
     if ([type isEqualToString:@"open-app"]) {
         dispatch_async(dispatch_get_main_queue(), ^{

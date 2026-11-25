@@ -6,7 +6,13 @@ const progressBar = document.querySelector("#progress-bar");
 const formatMark = document.querySelector("#format-mark");
 const companion = document.querySelector(".companion");
 const nativeLabel = document.querySelector("#native-label");
-const openAppButton = document.querySelector("#open-app");
+const settingsToggle = document.querySelector("#settings-toggle");
+const captureView = document.querySelector("#capture-view");
+const settingsView = document.querySelector("#settings-view");
+const destination = document.querySelector("#destination");
+const destinationDetail = document.querySelector("#destination-detail");
+const checkUpdate = document.querySelector("#check-update");
+const updateStatus = document.querySelector("#update-status");
 const extensionVersion = document.querySelector("#extension-version");
 const resolutionInputs = [...document.querySelectorAll('input[name="resolution"]')];
 
@@ -25,6 +31,10 @@ let selectedFormatId = "8k";
 let currentState = "ready";
 let nativeConnected = false;
 let browserCaptureModeReady = false;
+let outputMode = "downloads";
+let outputDirectory = "";
+let settingsVisible = false;
+let availableUpdate = null;
 
 extensionVersion.textContent = `Capture8K ${chrome.runtime.getManifest().version}`;
 
@@ -60,6 +70,12 @@ function renderNativeStatus(payload = {}) {
   }
   renderPrimaryAction();
   companion.title = payload.outputDirectory || "";
+  outputMode = ["downloads", "custom", "premiere"].includes(payload.outputMode) ? payload.outputMode : "downloads";
+  outputDirectory = payload.outputDirectory || "";
+  destination.value = outputMode;
+  destinationDetail.textContent = outputMode === "premiere"
+    ? "Creator Bridge · ajout au projet Premiere Pro actif."
+    : (outputMode === "custom" ? outputDirectory : "Dossier Capture8K dans Téléchargements");
   captureButton.disabled = currentState === "working" || currentState === "selecting" || !nativeConnected;
 }
 
@@ -93,12 +109,53 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message?.type === "capture8k-status") renderState(message);
 });
 
-openAppButton.addEventListener("click", () => {
-  chrome.runtime.sendMessage({ type: "capture8k-choose-folder" })
-    .then((result) => {
-      if (!result?.ok) renderState({ state: "error", message: result?.error || "Impossible d’ouvrir le dossier.", progress: 0 });
-    })
-    .catch((error) => renderState({ state: "error", message: error?.message || "Impossible d’ouvrir le dossier.", progress: 0 }));
+settingsToggle.addEventListener("click", () => {
+  settingsVisible = !settingsVisible;
+  captureView.hidden = settingsVisible;
+  settingsView.hidden = !settingsVisible;
+  settingsToggle.classList.toggle("active", settingsVisible);
+  settingsToggle.setAttribute("aria-label", settingsVisible ? "Fermer les réglages" : "Ouvrir les réglages");
+});
+
+destination.addEventListener("change", async () => {
+  const requestedMode = destination.value;
+  destination.disabled = true;
+  try {
+    const result = await chrome.runtime.sendMessage({ type: "capture8k-set-destination", outputMode: requestedMode });
+    if (!result?.ok) throw new Error(result?.error || "Impossible de modifier l’enregistrement.");
+    renderNativeStatus({ ...result.settings, connected: true });
+  } catch (error) {
+    destination.value = outputMode;
+    updateStatus.textContent = error.message;
+  } finally { destination.disabled = false; }
+});
+
+checkUpdate.addEventListener("click", async () => {
+  checkUpdate.disabled = true;
+  updateStatus.textContent = availableUpdate
+    ? "Téléchargement, vérification et installation…"
+    : "Vérification sécurisée de la release GitHub…";
+  try {
+    const result = await chrome.runtime.sendMessage(availableUpdate ? {
+      type: "capture8k-install-update",
+      version: availableUpdate.latestVersion,
+      archiveURL: availableUpdate.archiveURL,
+      checksumURL: availableUpdate.checksumURL
+    } : { type: "capture8k-check-update" });
+    if (!result?.ok) throw new Error(result?.error || "La vérification a échoué.");
+    if (result.installed) {
+      availableUpdate = null;
+      updateStatus.textContent = "Mise à jour installée · rechargez les extensions et Premiere Pro.";
+      checkUpdate.textContent = "Mise à jour terminée";
+    } else {
+      availableUpdate = result.updateAvailable ? result : null;
+      updateStatus.textContent = result.updateAvailable
+        ? `Capture8K ${result.latestVersion} est disponible.`
+        : `Capture8K ${result.currentVersion} est à jour.`;
+      checkUpdate.textContent = result.updateAvailable ? "Installer la mise à jour" : "Chercher une mise à jour";
+    }
+  } catch (error) { updateStatus.textContent = error.message; }
+  finally { checkUpdate.disabled = false; }
 });
 
 for (const input of resolutionInputs) {
