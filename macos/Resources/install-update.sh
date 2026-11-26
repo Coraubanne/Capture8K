@@ -100,31 +100,9 @@ for target in "${chrome_targets[@]}"; do
 done
 replace_directory "${source_firefox}" "${user_documents}/Firefox"
 
-bridge_root="${install_home}/Library/Application Support/Adobe/UXP/Plugins/External"
-bridge_target="${bridge_root}/${bridge_id}_${bridge_version}"
-autoload -Uz is-at-least
-typeset -a obsolete_bridges
-obsolete_bridges=()
-install_bridge=1
-for copy in "${bridge_root}"/${bridge_id}_*(N/); do
-  [[ "$(read_manifest "${copy}" id)" == "${bridge_id}" ]] || continue
-  found_version="$(read_manifest "${copy}" version)"
-  [[ "${found_version}" =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]] || continue
-  if is-at-least "${bridge_version}" "${found_version}"; then
-    install_bridge=0
-  else
-    obsolete_bridges+=("${copy}")
-  fi
-done
-if (( install_bridge )); then
-  replace_directory "${source_bridge}" "${bridge_target}"
-fi
-
 replace_directory "${source_app}/Contents" "${app_target}/Contents" "${app_target:h}"
 /usr/bin/codesign --verify --deep --strict "${app_target}"
+/bin/zsh "${app_target}/Contents/Resources/creator-bridge-update.sh" install-local "${source_bridge}" "${install_home}" >/dev/null
 committed=1
-for copy in "${obsolete_bridges[@]}"; do
-  /bin/rm -rf "${copy}"
-done
 
 print '{"ok":true,"installed":true}'

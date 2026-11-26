@@ -37,6 +37,7 @@ for bridge_file in manifest.json index.html index.js styles.css LICENSE; do
   cp "$creator_bridge_dir/$bridge_file" "$resources_dir/Creator Bridge/$bridge_file"
 done
 cp "$script_dir/Resources/install-update.sh" "$resources_dir/install-update.sh"
+cp "$script_dir/Resources/creator-bridge-update.sh" "$resources_dir/creator-bridge-update.sh"
 chmod 755 "$resources_dir/install-update.sh"
 codesign --force --deep --sign - "$app_root"
 echo "$app_root"

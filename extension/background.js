@@ -2701,6 +2701,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch((error) => sendResponse({ ok: false, error: friendlyError(error) }));
     return true;
   }
+  if (["capture8k-check-bridge-update", "capture8k-install-bridge-update"].includes(message?.type)) {
+    ensureNativeHost().then(() => {
+      const reply = waitForNativeMessage(
+        (event) => event?.type === "bridge-update-status", 120000, "Creator Bridge",
+      );
+      nativePort.postMessage({ type: message.type.replace("capture8k-", ""), version: message.version });
+      return reply;
+    }).then((reply) => sendResponse(reply.result))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
   if (message?.type === "capture8k-install-update") {
     ensureNativeHost()
       .then(() => {

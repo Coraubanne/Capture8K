@@ -618,6 +618,15 @@ api.runtime.onMessage.addListener((message) => {
       return reply;
     }).catch((error) => ({ ok: false, error: error?.message || String(error) }));
   }
+  if (["capture8k-check-bridge-update", "capture8k-install-bridge-update"].includes(message?.type)) {
+    return ensureNativeHost().then(() => {
+      const reply = waitForNativeMessage(
+        (event) => event?.type === "bridge-update-status", 120000, "Creator Bridge",
+      );
+      nativePort.postMessage({ type: message.type.replace("capture8k-", ""), version: message.version });
+      return reply;
+    }).then((reply) => reply.result).catch(() => ({ ok: false }));
+  }
   if (message?.type === "capture8k-install-update") {
     return ensureNativeHost().then(() => {
       const reply = waitForNativeMessage(

@@ -114,6 +114,10 @@ Une version plus récente de Creator Bridge
 n’est jamais rétrogradée ; les copies plus anciennes portant le même identifiant
 validé sont supprimées après installation réussie.
 
+Quand Premiere Pro est la destination active, **Chercher une mise à jour**
+vérifie aussi les versions autonomes de Creator Bridge. L’installation du module
+est proposée séparément dans les deux navigateurs.
+
 ## Licence
 
 Aucune licence open source n’est accordée pour le moment. Tous droits réservés.

@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 2.9.0 · 26 novembre 2026
+
+- Recherche indépendante des mises à jour de Creator Bridge dans Chrome et Firefox lorsque Premiere Pro est la destination active.
+- Installation du plugin partagé sous le même verrou que ClipFlow.
+
 ## 2.8.3 · 25 novembre 2026
 
 - Option Son de fin dans les réglages Chrome et Firefox. Capture8K joue le son « Pop » après l’enregistrement réussi du PNG.

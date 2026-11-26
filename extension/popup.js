@@ -20,6 +20,8 @@ const completionSound = document.querySelector("#completion-sound");
 const soundStatus = document.querySelector("#sound-status");
 const checkUpdate = document.querySelector("#check-update");
 const updateStatus = document.querySelector("#update-status");
+const bridgeUpdateStatus = document.querySelector("#bridge-update-status");
+const installBridgeUpdate = document.querySelector("#install-bridge-update");
 const extensionVersion = document.querySelector("#extension-version");
 const resolutionInputs = [...document.querySelectorAll('input[name="resolution"]')];
 
@@ -30,6 +32,9 @@ let captureState = { state: "ready" };
 let nativeStatus = null;
 let availableUpdate = null;
 let updateFeedback = {};
+let bridgeUpdate = null;
+let bridgeFeedback = "";
+let bridgeRequest = 0;
 let destinationError = "";
 let soundSaving = false;
 let soundError = false;
@@ -124,10 +129,16 @@ function renderDestination() {
 }
 
 function setNativeStatus(payload) {
+  if (nativeStatus?.outputMode !== payload?.outputMode) {
+    bridgeRequest += 1;
+    bridgeUpdate = null;
+    bridgeFeedback = "";
+  }
   nativeStatus = payload;
   renderCapture();
   renderDestination();
   renderCompletionSound();
+  renderBridgeUpdate();
 }
 
 function renderCompletionSound() {
@@ -150,6 +161,37 @@ function renderUpdate() {
   checkUpdate.textContent = copy(buttonKey);
   updateStatus.textContent = error && language === "fr" ? error : key ? copy(key, { version }) : "";
   updateStatus.title = error || "";
+  renderBridgeUpdate();
+}
+
+function renderBridgeUpdate() {
+  const premiere = nativeStatus?.outputMode === "premiere";
+  installBridgeUpdate.hidden = !premiere || !bridgeUpdate;
+  if (bridgeUpdate) installBridgeUpdate.textContent = copy("installBridge", { version: bridgeUpdate });
+  bridgeUpdateStatus.hidden = !premiere || !bridgeFeedback;
+  bridgeUpdateStatus.textContent = bridgeFeedback ? copy(bridgeFeedback) : "";
+}
+
+async function updateCreatorBridge(install = false) {
+  if (nativeStatus?.outputMode !== "premiere") return;
+  const version = bridgeUpdate;
+  const request = ++bridgeRequest;
+  bridgeUpdate = null;
+  bridgeFeedback = install ? "installingUpdate" : "checkingUpdate";
+  renderBridgeUpdate();
+  try {
+    const result = await api.runtime.sendMessage({
+      type: install ? "capture8k-install-bridge-update" : "capture8k-check-bridge-update", version,
+    });
+    if (!result?.ok) throw new Error("Creator Bridge");
+    if (request !== bridgeRequest) return;
+    bridgeUpdate = result.available ? result.latestVersion : null;
+    bridgeFeedback = install ? "bridgeInstalled" : "";
+  } catch {
+    if (request !== bridgeRequest) return;
+    bridgeFeedback = install ? "bridgeInstallFailed" : "bridgeCheckFailed";
+  }
+  renderBridgeUpdate();
 }
 
 const sessionStore = api.storage.session || api.storage.local;
@@ -214,6 +256,7 @@ completionSound.addEventListener("change", async () => {
 });
 
 checkUpdate.addEventListener("click", async () => {
+  const checking = !availableUpdate;
   checkUpdate.disabled = true;
   updateFeedback = { key: availableUpdate ? "installingUpdate" : "checkingUpdate" };
   renderUpdate();
@@ -235,8 +278,11 @@ checkUpdate.addEventListener("click", async () => {
   } finally {
     checkUpdate.disabled = false;
     renderUpdate();
+    if (checking) updateCreatorBridge();
   }
 });
+
+installBridgeUpdate.addEventListener("click", () => updateCreatorBridge(true));
 
 for (const input of resolutionInputs) {
   input.addEventListener("change", () => {

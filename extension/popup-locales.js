@@ -44,6 +44,10 @@ const popupCopy = {
     updateInstalled: "Mise à jour installée. Rechargez l’extension et Premiere Pro.",
     upToDate: "Capture8K {version} est à jour.",
     updateError: "La mise à jour a échoué.",
+    installBridge: "Installer Creator Bridge {version}",
+    bridgeCheckFailed: "Impossible de vérifier Creator Bridge.",
+    bridgeInstallFailed: "Installation de Creator Bridge impossible. Relancez la vérification.",
+    bridgeInstalled: "Creator Bridge est à jour. Redémarrez Premiere Pro s’il est ouvert.",
     extensionVersion: "Extension {version}"
   },
   en: {
@@ -91,6 +95,10 @@ const popupCopy = {
     updateInstalled: "Update installed. Reload the extension and restart Premiere Pro.",
     upToDate: "Capture8K {version} is up to date.",
     updateError: "The update failed.",
+    installBridge: "Install Creator Bridge {version}",
+    bridgeCheckFailed: "Could not check for Creator Bridge updates.",
+    bridgeInstallFailed: "Could not install Creator Bridge. Check for updates again.",
+    bridgeInstalled: "Creator Bridge is up to date. Restart Premiere Pro if it is open.",
     extensionVersion: "Extension {version}"
   }
 };

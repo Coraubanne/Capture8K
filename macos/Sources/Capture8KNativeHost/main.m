@@ -220,6 +220,25 @@ static NSDictionary *C8KInstallUpdate(NSDictionary *message, NSError **error) {
         @"message": @"Capture8K et Creator Bridge ont été mis à jour." };
 }
 
+static NSDictionary *C8KCreatorBridgeUpdate(NSString *mode, id version) {
+    if (![C8KLoadSettings()[@"outputMode"] isEqual:@"premiere"]) return @{ @"ok": @YES };
+    NSURL *helper = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"creator-bridge-update.sh"];
+    NSTask *task = [NSTask new];
+    task.executableURL = [NSURL fileURLWithPath:@"/bin/zsh"];
+    NSString *expected = [version isKindOfClass:NSString.class] && [version length] <= 32 ? version : @"";
+    task.arguments = @[ helper.path, mode, expected, NSHomeDirectory(), C8KSettingsURL().path ];
+    NSPipe *output = [NSPipe pipe];
+    task.standardOutput = output;
+    task.standardError = NSFileHandle.fileHandleWithNullDevice;
+    if (![task launchAndReturnError:nil]) return @{ @"ok": @NO };
+    [output.fileHandleForWriting closeFile];
+    NSData *data = [output.fileHandleForReading readDataToEndOfFile];
+    [task waitUntilExit];
+    if (task.terminationStatus != 0) return @{ @"ok": @NO };
+    id result = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+    return [result isKindOfClass:NSDictionary.class] ? result : @{ @"ok": @NO };
+}
+
 static NSDictionary *C8KActivePremiereConnection(NSError **error) {
     NSURL *storage = [NSFileManager.defaultManager.homeDirectoryForCurrentUser
         URLByAppendingPathComponent:@"Library/Application Support/Adobe/UXP/PluginsStorage/PPRO" isDirectory:YES];
@@ -789,6 +808,12 @@ static BOOL C8KWriteComposite(CGImageRef reference, CGImageRef render,
             return YES;
         }
         C8KWriteMessage(status);
+        return YES;
+    }
+    if ([type isEqualToString:@"check-bridge-update"] || [type isEqualToString:@"install-bridge-update"]) {
+        NSString *mode = [type isEqualToString:@"check-bridge-update"] ? @"check" : @"install";
+        C8KWriteMessage(@{ @"type": @"bridge-update-status",
+            @"result": C8KCreatorBridgeUpdate(mode, message[@"version"]) });
         return YES;
     }
     if ([type isEqualToString:@"install-update"]) {

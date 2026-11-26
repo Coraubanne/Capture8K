@@ -36,6 +36,7 @@ await writeFile(join(premiereBridge, "active-project.json"), JSON.stringify({
 const child = spawn(hostPath, ["chrome-extension://test/"], {
   env: {
     ...process.env,
+    CFFIXED_USER_HOME: temporaryRoot,
     CAPTURE8K_SETTINGS_PATH: settingsPath,
     CAPTURE8K_PREMIERE_BRIDGE_PATH: premiereBridge
   },
