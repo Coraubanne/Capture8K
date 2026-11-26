@@ -1,100 +1,53 @@
-<p align="center">
-  <img src="extension/icons/capture8k-mark.svg" width="96" alt="Icône Capture8K">
-</p>
+# Capture8K
 
-<h1 align="center">Capture8K</h1>
+<img src="extension/icons/capture8k-mark.svg" width="88" align="right" alt="Icône Capture8K">
 
-<p align="center">
-  Captures web 4K et 8K pour Chrome et Firefox sur macOS.
-</p>
+Enregistrez la partie visible d’une page web en PNG 4K ou 8K. Capture8K conserve les proportions et vérifie le résultat avant l’enregistrement. Il peut aussi envoyer la capture dans votre projet Premiere Pro.
 
-<p align="center">
-  <a href="https://github.com/Coraubanne/Capture8K/releases/latest"><img alt="Télécharger Capture8K" src="https://img.shields.io/badge/T%C3%A9l%C3%A9charger_Capture8K-007AFF?style=for-the-badge&amp;logo=apple"></a>
-</p>
+**[Télécharger Capture8K](https://github.com/Coraubanne/Capture8K/releases/latest)** · [Historique des versions](CHANGELOG.md) · [English](README.en.md)
 
-<p align="center">
-  <a href="https://github.com/Coraubanne/Capture8K/releases/latest"><img alt="Dernière version" src="https://img.shields.io/github/v/release/Coraubanne/Capture8K?style=flat-square"></a>
-  <a href="https://github.com/Coraubanne/Capture8K/actions/workflows/test.yml"><img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/Coraubanne/Capture8K/test.yml?branch=main&amp;style=flat-square"></a>
-  <a href="README.en.md">English</a> · <a href="CHANGELOG.md">Historique des versions</a>
-</p>
+Apple Silicon · macOS 13+ · Chrome 125+ ou Firefox 125+
 
-Capture8K réunit des extensions Chrome et Firefox avec une app macOS native.
-Le navigateur rerastérise la partie visible de la page avec un grand côté de
-3 840 px (4K) ou 7 680 px (8K), sans upscale IA, assemblage par défilement ni
-changement de viewport.
+## Installer Capture8K
 
-> Projet expérimental pour macOS. Une capture certifiée a les dimensions
-> annoncées et a passé les contrôles géométriques et visuels, mais une image
-> bitmap intégrée à la page ne peut pas contenir plus de détails que sa source.
+1. Téléchargez l’archive `Capture8K-complet-v…zip` dans la dernière release et décompressez-la. Sur GitHub, **Code → Download ZIP** donne accès au code source.
+2. Dans Terminal, placez-vous dans le dossier **Capture8K complet** et lancez `./install-macos.sh`. Le script installe l’application macOS et copie les extensions dans `~/Documents/Capture8K`.
+3. Suivez les étapes correspondant à votre navigateur.
 
-## Fonctionnalités
+   | Navigateur | Configuration |
+   | --- | --- |
+   | Google Chrome | Ouvrez `chrome://extensions`, activez le **Mode développeur** et chargez le dossier `~/Documents/Capture8K/Chrome` avec **Charger l’extension non empaquetée**. Copiez l’identifiant affiché par Chrome, puis relancez `./install-macos.sh IDENTIFIANT_DE_L_EXTENSION` depuis le dossier de l’installateur. |
+   | Firefox | Ouvrez `about:debugging#/runtime/this-firefox` et choisissez `~/Documents/Capture8K/Firefox/manifest.json` avec **Charger un module complémentaire temporaire**. Rechargez le module après avoir quitté puis relancé Firefox. |
 
-- capture immédiate du viewport visible complet en 4K ou 8K ;
-- conservation du ratio, du zoom Chrome, du DPR et des media queries ;
-- stabilisation des animations, médias et pages dynamiques ;
-- conservation fidèle des surfaces vidéo, canvas et iframe quand Chrome les
-  compose séparément du document haute résolution ;
-- garde locale qui rétablit automatiquement le mode fidèle après chaque lancement de Chrome ;
-- validation indépendante par l’app macOS avant l’écriture du PNG ;
-- dossier d’export personnalisable ;
-- interface en français ou en anglais, avec sélection automatique selon le navigateur ;
-- export direct dans le projet Premiere Pro actif via le pont partagé Creator Bridge ;
-- mise à jour vérifiée par SHA-256 de l’app, des extensions et du pont ;
-- installation anti-doublon : une seule version active par navigateur et un seul pont Premiere ;
-- raccourci macOS `⌘⇧8` ;
-- aucune IA et aucun envoi vers un service distant.
+## Faire une capture
 
-## Prérequis
+Ouvrez une page, choisissez **4K** ou **8K** dans l’extension et cliquez sur **Capturer**. Le raccourci `⌘⇧8` relance une capture avec le réglage courant. La roue ouvre les réglages pour choisir le dossier d’enregistrement, la langue de l’interface et le son de fin.
 
-- macOS 13 ou ultérieur ;
-- Google Chrome 125 ou Firefox 125 (ou ultérieur) ;
-- Adobe Premiere Pro 25.6 ou ultérieur pour l’import dans un projet.
+Le grand côté du PNG mesure **3 840 px en 4K** ou **7 680 px en 8K**. Capture8K effectue un nouveau rendu de la zone visible avec le moteur du navigateur et conserve les proportions. Les images intégrées conservent le niveau de détail de leurs sources.
 
-## Installation
+Les captures sont traitées sur le Mac. Le compagnon vérifie leurs dimensions et compare des images témoins avant d’écrire le PNG.
 
-1. Téléchargez `Capture8K-complet-v…zip` dans la [dernière release](https://github.com/Coraubanne/Capture8K/releases/latest) et décompressez l’archive.
-2. Dans Terminal, ouvrez le dossier **Capture8K complet**, puis lancez `./install-macos.sh`. Le script installe l’app précompilée et place les extensions dans `~/Documents/Capture8K`.
-3. Pour Chrome, ouvrez `chrome://extensions`, activez le **Mode développeur**, choisissez **Charger l’extension non empaquetée** et sélectionnez le dossier `~/Documents/Capture8K/Chrome`.
-4. Copiez l’identifiant affiché par Chrome et relancez le script depuis le même dossier, en remplaçant le texte d’exemple par cet identifiant.
+## Envoyer une capture vers Premiere Pro
 
-   ```sh
-   ./install-macos.sh IDENTIFIANT_DE_L_EXTENSION
-   ```
+Ouvrez un projet enregistré dans **Premiere Pro 25.6 ou ultérieur**, puis affichez **Fenêtre → Plug-ins UXP → Creator Bridge**. Dans Capture8K, choisissez **Premiere Pro** comme destination. La capture est enregistrée dans `Captures Capture8K` à côté du projet, puis Creator Bridge reçoit la demande d’import dans le panneau Projet. [Creator Bridge](https://github.com/Coraubanne/CreatorBridge)
 
-Pour Firefox, ouvrez `about:debugging#/runtime/this-firefox`, cliquez sur **Charger un module complémentaire temporaire…** et sélectionnez `~/Documents/Capture8K/Firefox/manifest.json`. Firefox retire le module temporaire en quittant.
+## Mettre à jour
 
-## Utilisation
+Ouvrez **Réglages → Chercher une mise à jour** dans l’extension. Le compagnon vérifie l’empreinte SHA-256 avant de remplacer l’app et les fichiers des extensions. Sous Firefox, rechargez le module temporaire pour utiliser les nouveaux fichiers. Lorsque Premiere Pro est la destination choisie, Capture8K vérifie aussi Creator Bridge séparément.
 
-Ouvrir une page web, choisir 4K ou 8K dans le popup, puis cliquer sur
-**Capturer** ou utiliser `⌘⇧8`. La roue ouvre les réglages : destination
-Téléchargements, autre dossier ou Premiere Pro, ainsi que la mise à jour.
-La destination Premiere crée `Captures Capture8K` à côté du projet enregistré
-et ajoute immédiatement le PNG au projet actif.
+## Projet et assistance
 
-## Architecture
+- [Signaler un problème](https://github.com/Coraubanne/Capture8K/issues) · [Tests GitHub Actions](https://github.com/Coraubanne/Capture8K/actions/workflows/test.yml)
+- Code source consultable sur GitHub. Tous droits réservés.
 
-- `extension/` : extension Chrome Manifest V3 ;
-- `extension-firefox/` : extension Firefox Manifest V3 ;
-- `macos/` : app de barre des menus et hôte Native Messaging en Objective-C ;
-- `vendor/CreatorBridge` : référence Git vers le projet autonome
-  [Creator Bridge](https://github.com/Coraubanne/CreatorBridge) ;
-- `scripts/build-release.sh` : archive complète et somme SHA-256 attendues par
-  l’updater sécurisé ;
-- `tests/` : tests du moteur de capture ;
-- `install-macos.sh` : compilation, installation de l’app et génération du
-  manifeste Native Messaging propre à l’utilisateur.
+<details>
+<summary>Architecture et tests</summary>
 
-Chrome utilise `chrome.debugger` et `Page.captureScreenshot`. L’agent local
-surveille Chrome et le relance avec `silent-debugger-extension-api` lorsque cet
-argument manque, afin d’éviter la barre technique qui modifierait la hauteur
-des pages responsives. Firefox utilise directement
-`tabs.captureVisibleTab` avec le facteur d’échelle natif de Gecko. Dans les deux
-cas, l’app certifie les dimensions et compare des captures témoins avant
-d’enregistrer le fichier.
+Les extensions se trouvent dans `extension/` et `extension-firefox/`. Le compagnon macOS et l’hôte de messagerie native sont écrits en Objective-C dans `macos/`. Le panneau Creator Bridge est référencé comme sous-module dans `vendor/CreatorBridge`.
 
-## Tests
+Chrome utilise `chrome.debugger` et `Page.captureScreenshot`. L’agent macOS peut relancer Chrome dans son mode de capture pour conserver la hauteur de la zone visible. Firefox utilise `tabs.captureVisibleTab` et le facteur d’échelle du moteur Gecko.
 
-Le build de développement utilise les outils de ligne de commande Xcode et les tests nécessitent Node.js.
+Les tests s’exécutent sur macOS avec les outils de ligne de commande Xcode et Node.js.
 
 ```sh
 git submodule update --init
@@ -102,22 +55,4 @@ git submodule update --init
 node --test tests/test-background.mjs macos/Tests/test-native-host.mjs
 ```
 
-## Mises à jour et composants partagés
-
-Chaque [version publiée](https://github.com/Coraubanne/Capture8K/releases)
-contient l’app, les deux extensions et une version précise de
-Creator Bridge. L’updater valide l’identité, la version, la signature de l’app
-et la somme SHA-256 avant remplacement. Il met à jour tous les chemins Chrome
-réellement chargés. Pour une première installation Chrome et pour Firefox,
-les dossiers sont `~/Documents/Capture8K/Chrome` et `~/Documents/Capture8K/Firefox`.
-Une version plus récente de Creator Bridge
-n’est jamais rétrogradée ; les copies plus anciennes portant le même identifiant
-validé sont supprimées après installation réussie.
-
-Quand Premiere Pro est la destination active, **Chercher une mise à jour**
-vérifie aussi les versions autonomes de Creator Bridge. L’installation du module
-est proposée séparément dans les deux navigateurs.
-
-## Licence
-
-Aucune licence open source n’est accordée pour le moment. Tous droits réservés.
+</details>
