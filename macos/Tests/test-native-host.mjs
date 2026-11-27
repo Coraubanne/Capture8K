@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const appRoot = fileURLToPath(new URL("../build/Capture8K.app", import.meta.url));
-const hostPath = join(appRoot, "Contents/MacOS/Capture8KNativeHost");
 const imagePath = process.argv[2]
   ? resolve(process.argv[2])
   : fileURLToPath(new URL("../../tests/fixtures/native-8k.png", import.meta.url));
@@ -18,6 +17,10 @@ const useSurfaceMask = process.argv.includes("--surface-mask");
 const expectedWidth = image.readUInt32BE(16);
 const expectedHeight = image.readUInt32BE(20);
 const temporaryRoot = await mkdtemp(join(tmpdir(), "capture8k-host-test-"));
+const appCopy = join(temporaryRoot, "Capture8K.app");
+execFileSync("/usr/bin/ditto", [appRoot, appCopy]);
+const hostPath = join(appCopy, "Contents/MacOS/Capture8KNativeHost");
+const bundleInfo = join(appCopy, "Contents/Info.plist");
 const outputDirectory = join(temporaryRoot, "output");
 const settingsPath = join(temporaryRoot, "settings.json");
 await writeFile(settingsPath, JSON.stringify({ resolution: "8k", outputDirectory, copyToClipboard: false }));
@@ -163,6 +166,20 @@ try {
     ));
     assert.equal(importJob.producer, "capture8k");
     assert.equal(importJob.projectPath, premiereProject);
+
+    const version = execFileSync("/usr/bin/plutil", ["-extract", "CFBundleShortVersionString", "raw", "-o", "-", bundleInfo],
+      { encoding: "utf8" }).trim();
+    send({ type: "install-update", version });
+    const alreadyInstalled = await waitFor(message => message.type === "update-status" && message.currentVersion === version);
+    assert.equal(alreadyInstalled.updateAvailable, false);
+    assert.equal(alreadyInstalled.installed, undefined);
+
+    const nextVersion = "99.0.0";
+    execFileSync("/usr/bin/plutil", ["-replace", "CFBundleShortVersionString", "-string", nextVersion, bundleInfo]);
+    send({ type: "install-update", version: nextVersion });
+    const afterReplacement = await waitFor(message => message.type === "update-status" && message.currentVersion === nextVersion);
+    assert.equal(afterReplacement.updateAvailable, false);
+    assert.equal(afterReplacement.installed, undefined);
     console.log(JSON.stringify({ nativeHost: "OK", width: expectedWidth, height: expectedHeight, output: completed.path }));
   }
 } finally {

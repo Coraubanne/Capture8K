@@ -99,12 +99,31 @@ static NSComparisonResult C8KCompareSemanticVersions(NSString *first, NSString *
 
 static NSString * const C8KReleaseRepository = @"Coraubanne/Capture8K";
 
+static NSURL *C8KNativeAppURL(void) {
+    NSURL *executable = [NSURL fileURLWithPath:NSProcessInfo.processInfo.arguments.firstObject].standardizedURL;
+    return executable.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent;
+}
+
+static NSString *C8KInstalledVersion(NSError **error) {
+    NSURL *infoURL = [C8KNativeAppURL() URLByAppendingPathComponent:@"Contents/Info.plist"];
+    // Native messaging keeps this process alive after the app bundle is replaced.
+    // Read the current file instead of NSBundle's cached info dictionary.
+    NSDictionary *info = [NSDictionary dictionaryWithContentsOfURL:infoURL error:nil];
+    NSString *version = info[@"CFBundleShortVersionString"];
+    if (![info[@"CFBundleIdentifier"] isEqual:@"com.capture8k.app"] || !C8KSemanticVersion(version)) {
+        if (error) *error = C8KError(77, @"Impossible de lire la version installée de Capture8K. Réessayez dans un instant.");
+        return nil;
+    }
+    return version;
+}
+
 static NSDictionary *C8KCheckUpdate(NSError **error) {
+    NSString *current = C8KInstalledVersion(error);
+    if (!current) return nil;
     NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:
         @"https://api.github.com/repos/%@/releases/latest", C8KReleaseRepository]];
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url cachePolicy:NSURLRequestReloadIgnoringLocalCacheData timeoutInterval:12.0];
     [request setValue:@"application/vnd.github+json" forHTTPHeaderField:@"Accept"];
-    NSString *current = NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"] ?: @"0.0.0";
     [request setValue:[@"Capture8K/" stringByAppendingString:current] forHTTPHeaderField:@"User-Agent"];
     dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
     __block NSData *responseData = nil;
@@ -176,6 +195,17 @@ static NSArray<NSString *> *C8KInstalledChromeExtensionPaths(void) {
 
 static NSDictionary *C8KInstallUpdate(NSDictionary *message, NSError **error) {
     NSString *version = message[@"version"];
+    if (!C8KSemanticVersion(version)) {
+        if (error) *error = C8KError(73, @"La version demandée est invalide. Relancez la recherche de mise à jour.");
+        return nil;
+    }
+    NSString *current = C8KInstalledVersion(error);
+    if (!current) return nil;
+    if (C8KCompareSemanticVersions(version, current) != NSOrderedDescending) {
+        return @{ @"type": @"update-status", @"ok": @YES, @"currentVersion": current,
+            @"latestVersion": current, @"updateAvailable": @NO };
+    }
+
     NSDictionary *release = C8KCheckUpdate(error);
     if (!release) return nil;
     if (![release[@"updateAvailable"] boolValue] || ![release[@"latestVersion"] isEqual:version]) {
@@ -190,8 +220,7 @@ static NSDictionary *C8KInstallUpdate(NSDictionary *message, NSError **error) {
         if (error) *error = C8KError(73, @"Les téléchargements de cette release ne sont pas valides.");
         return nil;
     }
-    NSURL *executable = [NSURL fileURLWithPath:NSProcessInfo.processInfo.arguments.firstObject].standardizedURL;
-    NSURL *appURL = executable.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent.URLByDeletingLastPathComponent;
+    NSURL *appURL = C8KNativeAppURL();
     NSURL *helper = [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"install-update.sh"];
     if (![NSFileManager.defaultManager isExecutableFileAtPath:helper.path]) {
         if (error) *error = C8KError(74, @"Le moteur de mise à jour Capture8K est absent.");

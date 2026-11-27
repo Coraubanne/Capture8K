@@ -1,5 +1,9 @@
 # Historique des versions
 
+## 2.9.2 · 27 novembre 2026
+
+- La recherche de mise à jour relit la version installée sur le disque. Un compagnon resté ouvert après l’installation ne repropose plus la même version.
+
 ## 2.9.1 · 27 novembre 2026
 
 - Changement du numéro de version pour tester le programme de mise à jour.
