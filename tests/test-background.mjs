@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+
+for (const directory of ["extension", "extension-firefox"]) {
+  const manifest = JSON.parse(await readFile(new URL(`../${directory}/manifest.json`, import.meta.url), "utf8"));
+  const popup = await readFile(new URL(`../${directory}/popup.js`, import.meta.url), "utf8");
+  assert.ok(popup.includes(`const EXPECTED_EXTENSION_VERSION = "${manifest.version}";`));
+}
 
 const commands = [];
 const events = [];

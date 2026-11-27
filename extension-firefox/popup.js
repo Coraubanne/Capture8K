@@ -1,6 +1,9 @@
 const api = globalThis.browser ?? globalThis.chrome;
 const isFirefox = typeof api.runtime.getBrowserInfo === "function";
 const manifestVersion = api.runtime.getManifest().version;
+const EXPECTED_EXTENSION_VERSION = "2.9.3";
+// Unpacked extensions can read an updated popup while their background still runs old code.
+if (manifestVersion !== EXPECTED_EXTENSION_VERSION) api.runtime.reload();
 const captureButton = document.querySelector("#capture");
 const captureLabel = document.querySelector("#capture-label");
 const status = document.querySelector("#status");
@@ -186,7 +189,7 @@ async function updateCreatorBridge(install = false) {
     if (!result?.ok) throw new Error("Creator Bridge");
     if (request !== bridgeRequest) return;
     bridgeUpdate = result.available ? result.latestVersion : null;
-    bridgeFeedback = install ? "bridgeInstalled" : "";
+    bridgeFeedback = install ? "bridgeInstalled" : result.currentVersion && !result.available ? "bridgeUpToDate" : "";
   } catch {
     if (request !== bridgeRequest) return;
     bridgeFeedback = install ? "bridgeInstallFailed" : "bridgeCheckFailed";
@@ -273,6 +276,7 @@ checkUpdate.addEventListener("click", async () => {
       key: result.updateAvailable ? "updateAvailable" : "upToDate",
       version: result.updateAvailable ? result.latestVersion : result.currentVersion
     };
+    if (result.installed) setTimeout(() => api.runtime.reload(), 900);
   } catch (error) {
     updateFeedback = { key: "updateError", error: error.message };
   } finally {

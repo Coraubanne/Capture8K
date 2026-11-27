@@ -1,5 +1,10 @@
 # Historique des versions
 
+## 2.9.3 · 27 novembre 2026
+
+- L’extension se recharge après une mise à jour. Elle détecte aussi une ancienne version qui tourne encore dans le navigateur.
+- La vérification indique quand Creator Bridge est à jour.
+
 ## 2.9.2 · 27 novembre 2026
 
 - La recherche de mise à jour relit la version installée sur le disque. Un compagnon resté ouvert après l’installation ne repropose plus la même version.

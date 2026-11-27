@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Capture8K pour Firefox",
   "description": "Rerastérise la page visible en PNG natif 4K ou 8K avec le moteur Gecko, sans upscale IA ni changement de viewport.",
-  "version": "2.9.2",
+  "version": "2.9.3",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
