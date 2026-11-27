@@ -1,5 +1,9 @@
 # Historique des versions
 
+## 2.9.1 · 27 novembre 2026
+
+- Changement du numéro de version pour tester le programme de mise à jour.
+
 ## 2.9.0 · 26 novembre 2026
 
 - Recherche indépendante des mises à jour de Creator Bridge dans Chrome et Firefox lorsque Premiere Pro est la destination active.
